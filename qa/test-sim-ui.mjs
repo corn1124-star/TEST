@@ -160,7 +160,7 @@ try {
 
   await setVal('simXFrom', '2026-11-05'); await setVal('simXTo', '2026-11-01');
   st = await xState();
-  check('từ > đến: khoá Tải về và báo "Ngày bắt đầu phải trước ngày kết thúc"', st.disabled && st.msg.includes('Ngày bắt đầu phải trước ngày kết thúc') && !st.msg.includes('Không có SIM nào'), JSON.stringify(st));
+  check('từ > đến: khoá Tải về và báo "Ngày bắt đầu không được sau ngày kết thúc"', st.disabled && st.msg.includes('Ngày bắt đầu không được sau ngày kết thúc') && !st.msg.includes('Không có SIM nào'), JSON.stringify(st));
 
   await setVal('simXFrom', '2026-11-01'); await setVal('simXTo', '2026-11-01');
   st = await xState();

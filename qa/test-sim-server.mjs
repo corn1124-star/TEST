@@ -15,7 +15,7 @@ const pad2 = (n) => String(n).padStart(2, '0');
 
 /** Sheet giả: lưới 2 chiều (hàng 1 = header), có ghi lại các lần setValues / setNumberFormat. */
 function makeSheet(grid, maxCols) {
-  const sheet = { grid, maxCols, writes: [], formats: [], seq: 0 };
+  const sheet = { grid, maxCols, writes: [], formats: [], weights: [], seq: 0 };
   const cellAt = (r, c) => (grid[r - 1] && grid[r - 1][c - 1] !== undefined ? grid[r - 1][c - 1] : '');
   sheet.getLastRow = () => grid.length;
   sheet.getMaxColumns = () => sheet.maxCols;
@@ -32,6 +32,7 @@ function makeSheet(grid, maxCols) {
       }));
     },
     setNumberFormat: (fmt) => { sheet.formats.push({ r, c, nr, nc, fmt, seq: ++sheet.seq }); },
+    setFontWeight: (w) => { sheet.weights.push({ r, c, nr, nc, w }); },
   });
   return sheet;
 }
@@ -145,6 +146,65 @@ const oldRow = (extra) => ['SIM-AAA', '0902343108', 'An', '', 'Binh', '', 'ghi c
   const s = makeSandbox([headers18()]);
   const c = vm.runInContext('[SIM.REQUESTED_ON, SIM.RECEIVED_ON, SIM_COLS, SIM_HEADERS[16], SIM_HEADERS[17]]', s.ctx);
   check('constants: indices 16/17, SIM_COLS 18, headers', c[0] === 16 && c[1] === 17 && c[2] === 18 && c[3] === 'Requested On' && c[4] === 'Received On', JSON.stringify(c));
+}
+
+/* 8. simReadDate_: Sheet là chữ (@), admin có thể gõ tay dd/MM/yyyy như app đang hiển thị */
+{
+  const s = makeSandbox([headers18()]);
+  const r = s.ctx.simReadDate_;
+  check('simReadDate_ is defined', typeof r === 'function');
+  if (typeof r === 'function') {
+    check("simReadDate_ '2026-11-05' and Date still work", r('2026-11-05') === '2026-11-05' && r(new Date(2026, 10, 5)) === '2026-11-05');
+    check("simReadDate_ '05/11/2026' -> '2026-11-05' (day/month/year)", r('05/11/2026') === '2026-11-05');
+    check("simReadDate_ ' 5/1/2026 ' (1 digit, spaces) -> '2026-01-05'", r(' 5/1/2026 ') === '2026-01-05');
+    check("simReadDate_ '31/02/2026' -> '' (not a real date)", r('31/02/2026') === '');
+    check("simReadDate_ '13/13/2026', 'chưa có', '', null -> ''", r('13/13/2026') === '' && r('chưa có') === '' && r('') === '' && r(null) === '');
+  }
+  check("simNormDate_ stays strict: '05/11/2026' -> ''", s.ctx.simNormDate_('05/11/2026') === '');
+}
+
+/* 9. ô ngày gõ tay dd/MM/yyyy: simList đọc được; sửa SIM với cùng ngày thì ghi yyyy-MM-dd */
+{
+  const s = makeSandbox([headers18(), oldRow(['05/11/2026', '31/02/2026'])]);
+  const l = s.ctx.simList();
+  check("hand-typed '05/11/2026' reads as '2026-11-05' via simList", l.ok && l.rows[0].requestedOn === '2026-11-05', JSON.stringify(l.rows && l.rows[0]));
+  check("hand-typed '31/02/2026' reads as ''", l.ok && l.rows[0].receivedOn === '', JSON.stringify(l.rows && l.rows[0]));
+  check('simList does not leak raw cell fields to the client', l.ok && !('requestedOnRaw' in l.rows[0]) && !('receivedOnRaw' in l.rows[0]), Object.keys(l.rows[0] || {}).join(','));
+  const res = s.ctx.simSave({ id: 'SIM-AAA', phone: '0902343108', holder: 'An', contact: 'Binh', note: 'ghi chú', requestedOn: l.rows[0].requestedOn, receivedOn: l.rows[0].receivedOn });
+  const row = s.sheet.grid[1];
+  check("edit with the same date keeps '2026-11-05' written", res.ok === true && row[16] === '2026-11-05', JSON.stringify([res, row.slice(16)]));
+  check("edit: '31/02/2026' (unreadable, submitted '') is kept, not wiped", row[17] === '31/02/2026', JSON.stringify(row.slice(16)));
+}
+
+/* 10. chữ không đọc được ('chưa có', 'Nov 5'): sửa mà gửi '' thì giữ nguyên ô; gửi ngày hợp lệ thì thay */
+{
+  const s = makeSandbox([headers18(), oldRow(['chưa có', 'Nov 5'])]);
+  const res = s.ctx.simSave({ id: 'SIM-AAA', phone: '0902343108', holder: 'An', contact: 'Binh', note: 'ghi chú', requestedOn: '', receivedOn: '' });
+  const row = s.sheet.grid[1];
+  check("edit submitting '' keeps unparseable raw 'chưa có' / 'Nov 5'", res.ok === true && row[16] === 'chưa có' && row[17] === 'Nov 5', JSON.stringify([res, row.slice(16)]));
+  const res2 = s.ctx.simSave({ id: 'SIM-AAA', phone: '0902343108', holder: 'An', contact: 'Binh', note: 'ghi chú', requestedOn: '2026-11-03', receivedOn: '' });
+  check("edit submitting a valid date replaces the raw text (other field still kept)", res2.ok === true && row[16] === '2026-11-03' && row[17] === 'Nov 5', JSON.stringify([res2, row.slice(16)]));
+  const s2 = makeSandbox([headers18(), oldRow(['2026-11-03', '2026-11-05'])]);
+  s2.ctx.simSave({ id: 'SIM-AAA', phone: '0902343108', holder: 'An', contact: 'Binh', note: 'ghi chú', requestedOn: '', receivedOn: '' });
+  check('edit submitting \'\' still clears a parseable date', s2.sheet.grid[1][16] === '' && s2.sheet.grid[1][17] === '', JSON.stringify(s2.sheet.grid[1].slice(16)));
+}
+
+/* 11. simSheet_ không ghi đè dữ liệu khác ở Q1/R1 */
+{
+  const g = [HEADERS16.concat(['Ghi chú riêng', 'Received On']), oldRow(['x', 'y'])];
+  const s = makeSandbox(g);
+  let err = null;
+  try { s.ctx.simSheet_(); } catch (e) { err = e; }
+  check('simSheet_ throws when Q1 holds a different non-empty value', !!err && /Cột Q\/R/.test(err.message), err && err.message);
+  check('simSheet_ leaves Q1/R1 untouched on conflict', s.sheet.grid[0][16] === 'Ghi chú riêng' && s.sheet.grid[0][17] === 'Received On');
+  const s2 = makeSandbox([headers18()]);
+  let ok2 = true; try { s2.ctx.simSheet_(); } catch (e) { ok2 = false; }
+  check('simSheet_ does not throw when headers already match', ok2);
+  const s3 = makeSandbox([HEADERS16.slice(), oldRow()], { maxCols: 16 });
+  let ok3 = true; try { s3.ctx.simSheet_(); } catch (e) { ok3 = false; }
+  check('simSheet_ still fills empty Q1:R1', ok3 && s3.sheet.grid[0][16] === 'Requested On' && s3.sheet.grid[0][17] === 'Received On');
+  const bold = s3.sheet.weights;
+  check("simSheet_ makes the new header cells Q1:R1 bold", bold.some((b) => b.r === 1 && b.c === 17 && b.nc === 2 && b.w === 'bold'), JSON.stringify(bold));
 }
 
 fs.mkdirSync(path.join(HERE, 'results'), { recursive: true });

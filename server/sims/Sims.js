@@ -3,6 +3,8 @@
    ══════════════════════════════════════════════════════════════════════
    SIM không có số lượng và không nhập/xuất như hàng: mỗi SIM là MỘT dòng, tạo khi có yêu cầu.
    Mỗi dòng cho biết: số điện thoại · người đang giữ · người liên hệ · ai điền · khi nào.
+   Hai ngày không bắt buộc: Requested On (ngày yêu cầu) và Received On (ngày nhận), cột 17-18, lưu dạng chữ yyyy-MM-dd.
+   Khi ĐỌC, hai ô ngày còn chấp nhận dd/MM/yyyy (người sửa tay trong Sheet); khi GHI (simSave) chỉ nhận yyyy-MM-dd.
 
    QUYỀN: team POPS (Cost Center chứa 'POPPSV') và admin được xem + thêm + sửa + xoá.
           Người khác không gọi được API nào ở đây (kiểm ở simAccess_, không chỉ ở giao diện).
@@ -91,12 +93,32 @@ function simNormDate_(raw) {
   return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d ? m[0] : '';
 }
 
-/** ensureSheet_ chỉ ghi header khi ô A1 sai, nên sheet 16 cột cũ không tự có 2 header ngày: ghi bù ở đây. */
+/** CHỈ để ĐỌC: như simNormDate_, thêm dd/MM/yyyy (người sửa tay trong Sheet, giống kiểu app hiển thị) -> 'yyyy-MM-dd'.
+    Ngày không có thật (31/02/2026) -> ''. simSave vẫn dùng simNormDate_ (chặt). */
+function simReadDate_(raw) {
+  const iso = simNormDate_(raw);
+  if (iso || raw instanceof Date) return iso;
+  const m = /^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*$/.exec(String(raw == null ? '' : raw));
+  if (!m) return '';
+  const d = +m[1], mo = +m[2], y = +m[3];
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return '';
+  return y + '-' + ('0' + mo).slice(-2) + '-' + ('0' + d).slice(-2);
+}
+
+/** ensureSheet_ chỉ ghi header khi ô A1 sai, nên sheet 16 cột cũ không tự có 2 header ngày: ghi bù ở đây.
+    Q1/R1 đang có chữ khác header mong đợi -> không ghi đè, báo lỗi (tránh đè dữ liệu của người dùng). */
 function simSheet_() {
   const sh = ensureSheet_(SH_SIM, SIM_HEADERS, SIM_COLS);
   const want = SIM_HEADERS.slice(SIM.REQUESTED_ON, SIM.RECEIVED_ON + 1);
   const have = sh.getRange(1, SIM.REQUESTED_ON + 1, 1, 2).getValues()[0];
-  if (have[0] !== want[0] || have[1] !== want[1]) sh.getRange(1, SIM.REQUESTED_ON + 1, 1, 2).setValues([want]);
+  if (have[0] !== want[0] || have[1] !== want[1]) {
+    const clash = [0, 1].some(function (i) { const h = String(have[i] == null ? '' : have[i]).trim(); return h !== '' && h !== want[i]; });
+    if (clash) throw new Error('Cột Q/R của sheet Sim đang có dữ liệu khác, không thể thêm cột ngày. Kiểm tra sheet Sim.');
+    const rg = sh.getRange(1, SIM.REQUESTED_ON + 1, 1, 2);
+    rg.setValues([want]);
+    rg.setFontWeight('bold');
+  }
   return sh;
 }
 
@@ -128,7 +150,8 @@ function simRows_() {
       createdTs: r[SIM.CREATED_AT] instanceof Date ? r[SIM.CREATED_AT].getTime() : 0,
       deleted: del, deletedAt: simFmtTime_(r[SIM.DELETED_AT]), deletedBy: String(r[SIM.DELETED_BY] || '').trim().toLowerCase(),
       source: String(r[SIM.SOURCE] || ''), legacyCode: String(r[SIM.LEGACY_CODE] || ''),
-      requestedOn: simNormDate_(r[SIM.REQUESTED_ON]), receivedOn: simNormDate_(r[SIM.RECEIVED_ON])
+      requestedOn: simReadDate_(r[SIM.REQUESTED_ON]), receivedOn: simReadDate_(r[SIM.RECEIVED_ON]),
+      requestedOnRaw: r[SIM.REQUESTED_ON], receivedOnRaw: r[SIM.RECEIVED_ON]   // ô gốc: chỉ dùng nội bộ ở simSave, KHÔNG gửi cho giao diện
     });
   });
   return out;
@@ -150,6 +173,7 @@ function simList() {
       r.createdByName = simWhoName_(r.createdBy, people);
       r.updatedByName = simWhoName_(r.updatedBy, people);
       r.deletedByName = simWhoName_(r.deletedBy, people);
+      delete r.requestedOnRaw; delete r.receivedOnRaw;   // có thể là Date; client chỉ cần requestedOn/receivedOn
       return r;
     });
     return { ok: true, rows: rows, isAdmin: u.role === 'admin',
@@ -212,7 +236,11 @@ function simSave(data) {
         phone, cell_(holder.name), holder.email, cell_(contact.name), contact.email, cell_(note)
       ]]);
       simTextDates_(sh, cur.row, 1);
-      sh.getRange(cur.row, SIM.REQUESTED_ON + 1, 1, 2).setValues([dates]);
+      // Ô cũ có chữ không đọc được (vd "chưa có") mà form gửi '' -> giữ nguyên ô, đừng xoá âm thầm.
+      const keepRaw = function (val, raw) {
+        return val === '' && String(raw == null ? '' : raw).trim() !== '' && !simReadDate_(raw) ? raw : val;
+      };
+      sh.getRange(cur.row, SIM.REQUESTED_ON + 1, 1, 2).setValues([[keepRaw(dates[0], cur.requestedOnRaw), keepRaw(dates[1], cur.receivedOnRaw)]]);
       sh.getRange(cur.row, SIM.UPDATED_AT + 1, 1, 2).setValues([[now, u.email]]);
       log_(u, 'SIM_UPDATE', cur.phone + (cur.phone !== phone ? '->' + phone : '') + ' | giữ ' + (cur.holderName || '-') + '->' + (holder.name || '-') +
            ' | liên hệ ' + (cur.contactName || '-') + '->' + (contact.name || '-'));

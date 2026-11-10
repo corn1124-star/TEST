@@ -91,6 +91,35 @@ try {
     check('leading/trailing space preserved (xml:space)', await page.eval(`(() => { const z = Array.from(xlsxBuild('S', ['H'], [[' x ']])); return new TextDecoder().decode(new Uint8Array(z)).includes('xml:space="preserve"> x <'); })()`));
   }
 
+  /* Thay cho việc mở thử bằng Excel: MỌI phần của workbook phải là XML well-formed (DOMParser không trả parsererror).
+     Dùng cả dữ liệu thù địch: & < > ' " , =HYPERLINK, emoji, ký tự điều khiển, khoảng trắng đầu/cuối, tên sheet lạ. */
+  if (has.x === 'function') {
+    const hostileHeaders = ['Số thuê bao', 'A&B <x> "q" \'s\'', '=HYPERLINK("http://x")', '😀 emoji'];
+    const hostileRows = [
+      ['0902343108', 'Tom & Jerry <script>alert("x")</script>', '=HYPERLINK("x",\'y\')', '😀👍🏽 \u{1F9D1}\u200D\u{1F4BB}'],
+      ['a\u0000b\u0001c\u000bd\u001fe\ttab', '&amp; &lt; &#x1; ]]> <![CDATA[x]]>', '"quoted" \'single\'', ' lead and trail '],
+      ['\uFFFE\uFFFF', '+1', '-1', '@SUM(1)'],
+    ];
+    const sheetNames = ['SIM', 'A&B <c> "d"\'', '😀'];
+    for (const nm of sheetNames) {
+      const arr = await page.eval(`Array.from(xlsxBuild(${JSON.stringify(nm)}, ${JSON.stringify(hostileHeaders)}, ${JSON.stringify(hostileRows)}))`);
+      const parts = readZip(Buffer.from(arr)).map((e) => ({ name: e.name, xml: e.data.toString('utf8') }));
+      const bad = await page.eval(`(() => {
+        const out = [];
+        for (const p of ${JSON.stringify(parts)}) {
+          const doc = new DOMParser().parseFromString(p.xml, 'application/xml');
+          const err = doc.getElementsByTagName('parsererror');
+          if (err.length) out.push(p.name + ': ' + err[0].textContent.slice(0, 160).replace(/\s+/g, ' '));
+        }
+        return out;
+      })()`);
+      check('every XLSX part is well-formed XML (hostile text, sheet name ' + JSON.stringify(nm) + ', ' + parts.length + ' parts)', parts.length === 6 && bad.length === 0, bad.join(' | '));
+    }
+    /* chứng minh bộ kiểm có răng: một phần hỏng thì PHẢI bị báo parsererror */
+    const sane = await page.eval(`(() => { const d = new DOMParser().parseFromString('<a><b></a>', 'application/xml'); return d.getElementsByTagName('parsererror').length; })()`);
+    check('well-formedness check detects broken XML (control)', sane > 0, String(sane));
+  }
+
   /* downloadCsv vẫn tạo Blob có BOM, qua downloadBlob */
   const csv = await page.eval(`(async () => {
     const blobs = []; const orig = URL.createObjectURL;
