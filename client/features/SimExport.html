@@ -3,9 +3,17 @@
   (function () {
     Object.assign(I18N.vi, {
       'simx.c.requested':'Ngày tạo yêu cầu', 'simx.c.received':'Ngày nhận SIM', 'simx.c.recipient':'Người nhận', 'simx.c.holder':'Người giữ', 'simx.c.phone':'Số thuê bao',
+      'simx.title':'Xuất báo cáo SIM', 'simx.by':'Lọc theo', 'simx.from':'Từ ngày', 'simx.to':'Đến ngày', 'simx.fmt':'Định dạng',
+      'simx.hint':'Để trống ngày nếu muốn xuất tất cả SIM đang dùng. Báo cáo được tạo ngay trên máy của bạn, không cần tải lại dữ liệu.',
+      'simx.count':'Sẽ xuất {n} SIM', 'simx.none':'Không có SIM nào trong khoảng này', 'simx.range':'Ngày bắt đầu phải trước ngày kết thúc',
+      'simx.csv':'CSV (mở bằng Excel)', 'simx.xlsx':'XLSX (Excel)', 'simx.go':'Tải về', 'simx.close':'Đóng', 'simx.done':'Đã tạo báo cáo {n} SIM.',
     });
     Object.assign(I18N.en, {
       'simx.c.requested':'Request date', 'simx.c.received':'SIM received', 'simx.c.recipient':'Recipient', 'simx.c.holder':'Holder', 'simx.c.phone':'Subscriber number',
+      'simx.title':'Export SIM report', 'simx.by':'Filter by', 'simx.from':'From date', 'simx.to':'To date', 'simx.fmt':'Format',
+      'simx.hint':'Leave the dates empty to export every active SIM. The report is built on your computer, no data is reloaded.',
+      'simx.count':'{n} SIMs will be exported', 'simx.none':'No SIM in this range', 'simx.range':'The start date must not be after the end date',
+      'simx.csv':'CSV (opens in Excel)', 'simx.xlsx':'XLSX (Excel)', 'simx.go':'Download', 'simx.close':'Close', 'simx.done':'Report of {n} SIMs created.',
     });
   })();
 
@@ -60,5 +68,71 @@
   /* SIM_<từ hoặc all>_<đến hoặc all>.<ext> */
   function simReportFileName(opt, ext) {
     return 'SIM_' + ((opt && opt.from) || 'all') + '_' + ((opt && opt.to) || 'all') + '.' + ext;
+  }
+
+  /* ── giao diện: thẻ #simExportCard (nằm trong trang SIM, dựng ở Sims.html) ──
+     Báo cáo dựng hoàn toàn ở trình duyệt từ SM.rows đã tải: không gọi máy chủ. */
+  function simExportOpts() {
+    return { by: el('simXBy').value, from: el('simXFrom').value, to: el('simXTo').value };
+  }
+
+  /* Tính lại số SIM sẽ xuất + trạng thái nút Tải về; trả về { opt, rows, ok }. */
+  function simExportRefresh() {
+    const opt = simExportOpts();
+    const bad = !!(opt.from && opt.to && opt.from > opt.to);
+    const rows = bad ? [] : simReportRows(SM.rows, opt);
+    const ok = !bad && rows.length > 0;
+    el('simXCount').textContent = t('simx.count', { n: rows.length });
+    el('simXGo').disabled = !ok;
+    if (ok) hide('simXMsg'); else showBox('simXMsg', escapeHtml(t(bad ? 'simx.range' : 'simx.none')), 'err');
+    return { opt: opt, rows: rows, ok: ok };
+  }
+
+  function simExportOpen() {
+    const c = el('simExportCard');
+    if (!c) return;
+    hide('simFormCard');
+    const by = (el('simXBy') || {}).value || 'requestedOn';
+    const keep = el('simXBy') ? { from: el('simXFrom').value, to: el('simXTo').value, fmt: el('simXFmt').value } : { from: '', to: '', fmt: 'csv' };
+    const sel = function (v, cur) { return v === cur ? ' selected' : ''; };
+    c.hidden = false;
+    c.innerHTML =
+      '<h2>' + escapeHtml(t('simx.title')) + '</h2>' +
+      '<div class="grid">' +
+        '<div class="field"><label for="simXBy">' + escapeHtml(t('simx.by')) + '</label>' +
+          '<select id="simXBy"><option value="requestedOn"' + sel('requestedOn', by) + '>' + escapeHtml(t('simx.c.requested')) + '</option>' +
+          '<option value="receivedOn"' + sel('receivedOn', by) + '>' + escapeHtml(t('simx.c.received')) + '</option></select></div>' +
+        '<div class="field w-md"><label for="simXFrom">' + escapeHtml(t('simx.from')) + '</label>' +
+          '<input type="date" id="simXFrom" value="' + escapeHtml(keep.from) + '"></div>' +
+        '<div class="field w-md"><label for="simXTo">' + escapeHtml(t('simx.to')) + '</label>' +
+          '<input type="date" id="simXTo" value="' + escapeHtml(keep.to) + '"></div>' +
+        '<div class="field"><label for="simXFmt">' + escapeHtml(t('simx.fmt')) + '</label>' +
+          '<select id="simXFmt"><option value="csv"' + sel('csv', keep.fmt) + '>' + escapeHtml(t('simx.csv')) + '</option>' +
+          '<option value="xlsx"' + sel('xlsx', keep.fmt) + '>' + escapeHtml(t('simx.xlsx')) + '</option></select></div>' +
+      '</div>' +
+      '<div class="hint">' + escapeHtml(t('simx.hint')) + '</div>' +
+      '<p class="sim-xcount" id="simXCount" role="status"></p>' +
+      '<div class="box err" id="simXMsg" hidden></div>' +
+      '<div class="actions"><button class="btn sm" id="simXGo" onclick="simExportRun()">' + icon('download') + '<span>' + escapeHtml(t('simx.go')) + '</span></button>' +
+      '<button class="btn ghost sm" onclick="hide(\'simExportCard\')">' + escapeHtml(t('simx.close')) + '</button></div>';
+    ['simXBy', 'simXFrom', 'simXTo', 'simXFmt'].forEach(function (id) {
+      el(id).addEventListener('input', simExportRefresh);
+      el(id).addEventListener('change', simExportRefresh);
+    });
+    simExportRefresh();
+    c.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function simExportRun() {
+    const s = simExportRefresh();
+    if (!s.ok) return;
+    const table = simReportTable(s.rows);
+    if (el('simXFmt').value === 'xlsx') {
+      const bytes = xlsxBuild('SIM', table.headers, table.rows);    // số thuê bao là ô chữ nên giữ số 0 đầu
+      downloadBlob(simReportFileName(s.opt, 'xlsx'), new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    } else {
+      downloadCsv(simReportFileName(s.opt, 'csv'), simCsvLines(table));
+    }
+    toast(t('simx.done', { n: s.rows.length }));
   }
 </script>

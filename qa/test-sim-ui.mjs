@@ -104,6 +104,102 @@ try {
   const a3 = (await page.calls('simSave'))[0]?.args?.[0] || {};
   check('thêm SIM mới để trống ngày vẫn gửi cả hai trường rỗng', a3.requestedOn === '' && a3.receivedOn === '', JSON.stringify(a3));
 
+  /* ---- Xuất báo cáo (CSV / XLSX) ---- */
+  const setVal = (id, v) => page.eval((i, x) => { const e = document.getElementById(i); e.value = x; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, id, v);
+  const xState = () => page.eval(() => ({
+    count: (document.getElementById('simXCount') || {}).textContent || '',
+    disabled: !!(document.getElementById('simXGo') || {}).disabled,
+    msg: (document.querySelector('#simExportCard .box:not([hidden])') || {}).textContent || ''
+  }));
+  const expectN = (opt) => page.eval((o) => simReportRows(SM.rows, o).length, opt);
+  const stubDownloads = () => page.eval(() => {
+    window.__dl = []; window.__lastBlob = null;
+    URL.createObjectURL = (b) => { window.__lastBlob = b; return 'blob:stub'; };
+    URL.revokeObjectURL = () => {};
+    HTMLAnchorElement.prototype.click = function () { window.__dl.push({ name: this.download, blob: window.__lastBlob }); };
+  });
+  const lastDownload = () => page.eval(async () => {
+    const d = window.__dl[window.__dl.length - 1];
+    if (!d) return null;
+    const u = new Uint8Array(await d.blob.arrayBuffer());
+    return { name: d.name, n: window.__dl.length, head: Array.from(u.slice(0, 4)), text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(u), latin1: Array.from(u).map((c) => String.fromCharCode(c)).join('') };
+  });
+
+  await stubDownloads();
+  await page.resetCalls();
+  check('thẻ xuất báo cáo ẩn khi chưa bấm nút', (await page.eval("document.getElementById('simExportCard') && document.getElementById('simExportCard').hidden")) === true);
+  await page.click('text=Xuất báo cáo');
+  check('bấm "Xuất báo cáo" thì thẻ hiện ra', (await page.eval("(() => { const c = document.getElementById('simExportCard'); return !!c && !c.hidden && c.getBoundingClientRect().height > 0; })()")) === true);
+  check('mở thẻ xuất không gọi máy chủ', (await page.calls()).length === 0, JSON.stringify(await page.calls()));
+  const ctl = await page.eval(() => ({
+    by: [...document.querySelectorAll('#simXBy option')].map((o) => o.value), byVal: document.getElementById('simXBy').value,
+    fmt: [...document.querySelectorAll('#simXFmt option')].map((o) => o.value), fmtVal: document.getElementById('simXFmt').value,
+    types: [document.getElementById('simXFrom').type, document.getElementById('simXTo').type],
+    fmtLabels: [...document.querySelectorAll('#simXFmt option')].map((o) => o.textContent)
+  }));
+  check('ô lọc theo: requestedOn (mặc định) và receivedOn', JSON.stringify(ctl.by) === '["requestedOn","receivedOn"]' && ctl.byVal === 'requestedOn', JSON.stringify(ctl));
+  check('ô định dạng: csv (mặc định) và xlsx, không có PDF', JSON.stringify(ctl.fmt) === '["csv","xlsx"]' && ctl.fmtVal === 'csv' && !ctl.fmtLabels.join().match(/pdf/i), JSON.stringify(ctl));
+  check('hai ô từ/đến là type=date', ctl.types.join() === 'date,date', JSON.stringify(ctl.types));
+
+  let st = await xState();
+  check('chưa chọn ngày: đếm đủ số SIM chưa xoá và nút Tải về mở', st.count.includes('Sẽ xuất 4 SIM') && !st.disabled, JSON.stringify(st));
+
+  await setVal('simXBy', 'receivedOn'); await setVal('simXFrom', '2026-11-02'); await setVal('simXTo', '2026-11-05');
+  st = await xState();
+  let n = await expectN({ by: 'receivedOn', from: '2026-11-02', to: '2026-11-05' });
+  check('đổi cột lọc + khoảng ngày: số SIM khớp simReportRows (bao gồm hai đầu)', n === 2 && st.count.includes('Sẽ xuất ' + n + ' SIM') && !st.disabled, JSON.stringify([n, st]));
+
+  await setVal('simXBy', 'requestedOn');
+  st = await xState();
+  n = await expectN({ by: 'requestedOn', from: '2026-11-02', to: '2026-11-05' });
+  check('đổi sang ngày tạo yêu cầu: đếm lại (chỉ 03/11)', n === 1 && st.count.includes('Sẽ xuất 1 SIM'), JSON.stringify([n, st]));
+
+  await setVal('simXFrom', '2027-01-01'); await setVal('simXTo', '');
+  st = await xState();
+  check('khoảng không có SIM: khoá Tải về và báo "Không có SIM nào trong khoảng này"', st.disabled && st.msg.includes('Không có SIM nào trong khoảng này') && st.count.includes('Sẽ xuất 0 SIM'), JSON.stringify(st));
+
+  await setVal('simXFrom', '2026-11-05'); await setVal('simXTo', '2026-11-01');
+  st = await xState();
+  check('từ > đến: khoá Tải về và báo "Ngày bắt đầu phải trước ngày kết thúc"', st.disabled && st.msg.includes('Ngày bắt đầu phải trước ngày kết thúc') && !st.msg.includes('Không có SIM nào'), JSON.stringify(st));
+
+  await setVal('simXFrom', '2026-11-01'); await setVal('simXTo', '2026-11-01');
+  st = await xState();
+  check('từ = đến là hợp lệ (1 SIM ngày 01/11), thông báo lỗi biến mất', !st.disabled && st.count.includes('Sẽ xuất 1 SIM') && st.msg === '', JSON.stringify(st));
+
+  /* CSV */
+  await setVal('simXFrom', '2026-11-01'); await setVal('simXTo', '2026-11-30');
+  await page.resetCalls();
+  await page.click('#simXGo');
+  let dl = await lastDownload();
+  check('tải CSV: tên SIM_<từ>_<đến>.csv', dl && dl.name === 'SIM_2026-11-01_2026-11-30.csv', JSON.stringify(dl && dl.name));
+  check('CSV bắt đầu bằng BOM (EF BB BF)', dl && dl.head.slice(0, 3).join() === '239,187,191', JSON.stringify(dl && dl.head));
+  const csvLines = dl ? dl.text.replace(/^﻿/, '').split('\n') : [];
+  check('CSV dòng đầu là tiêu đề 5 cột', csvLines[0] === 'Ngày tạo yêu cầu,Ngày nhận SIM,Người nhận,Người giữ,Số thuê bao', csvLines[0]);
+  check('CSV: 2 dòng dữ liệu, số thuê bao dạng 0901 111 111', csvLines.length === 3 && dl.text.includes('0901 111 111') && dl.text.includes('0902 222 222'), JSON.stringify(csvLines));
+
+  /* XLSX */
+  await setVal('simXBy', 'receivedOn'); await setVal('simXFrom', ''); await setVal('simXTo', ''); await setVal('simXFmt', 'xlsx');
+  await page.click('#simXGo');
+  dl = await lastDownload();
+  check('tải XLSX: tên SIM_all_all.xlsx', dl && dl.name === 'SIM_all_all.xlsx' && dl.n === 2, JSON.stringify(dl && [dl.name, dl.n]));
+  check('XLSX bắt đầu bằng PK\\x03\\x04', dl && dl.head.join() === '80,75,3,4', JSON.stringify(dl && dl.head));
+  check('XLSX: số thuê bao là ô chữ giữ số 0 đầu', dl && dl.latin1.includes('t="inlineStr"><is><t xml:space="preserve">0901111111</t>'), '');
+  check('XLSX: tên sheet là SIM', dl && dl.latin1.includes('name="SIM"'), '');
+  check('xuất file không gọi máy chủ', (await page.calls()).length === 0, JSON.stringify(await page.calls()));
+
+  /* chuỗi vi/en */
+  const i18n = await page.eval(() => {
+    const re = /^simx\.[a-z]+$|^sim\.export$/;
+    const keys = Object.keys(I18N.vi).filter((k) => re.test(k));
+    return { keys, missingEn: keys.filter((k) => !I18N.en[k]), extraEn: Object.keys(I18N.en).filter((k) => re.test(k) && !I18N.vi[k]) };
+  });
+  check('mọi chuỗi simx.* và sim.export có cả vi và en', i18n.keys.includes('sim.export') && i18n.keys.includes('simx.go') && !i18n.missingEn.length && !i18n.extraEn.length, JSON.stringify(i18n));
+
+  /* ảnh chụp: thẻ mở, có dữ liệu */
+  await setVal('simXBy', 'requestedOn'); await setVal('simXFmt', 'csv');
+  await page.eval("document.querySelectorAll('#toastHost .toast').forEach((x) => x.remove())");
+  await page.screenshot(path.join(HERE, 'results', 'screens', 'sim-export-D.png'));
+
   const errD = page.consoleErrors();
   check('không có lỗi console ở viewport D', errD.length === 0, errD.map((e) => e.text.split('\n')[0]).join(' | '));
   await page.screenshot(path.join(HERE, 'results', 'screens', 'sim-ui-D.png'));
@@ -118,6 +214,20 @@ try {
   const errM = page.consoleErrors();
   check('không có lỗi console ở viewport M', errM.length === 0, errM.map((e) => e.text.split('\n')[0]).join(' | '));
   await page.screenshot(path.join(HERE, 'results', 'screens', 'sim-ui-M.png'));
+
+  /* thẻ xuất báo cáo ở 390px */
+  await page.resetCalls();
+  await page.click('text=Xuất báo cáo');
+  const ovx = await page.eval(() => ({ sw: document.documentElement.scrollWidth, iw: innerWidth, open: !document.getElementById('simExportCard').hidden }));
+  check('viewport M: thẻ xuất mở và không tràn ngang', ovx.open && ovx.sw <= ovx.iw, JSON.stringify(ovx));
+  const fx = await page.eval(() => ['simXBy', 'simXFrom', 'simXTo', 'simXFmt', 'simXCount', 'simXGo'].map((id) => { const e = document.getElementById(id); const r = e && e.getBoundingClientRect(); return !!r && r.width > 0 && r.right <= innerWidth; }));
+  check('viewport M: mọi ô của thẻ xuất nằm trong màn hình', fx.every(Boolean), JSON.stringify(fx));
+  check('viewport M: mở thẻ xuất không gọi máy chủ', (await page.calls()).length === 0);
+  await page.eval("document.getElementById('simXGo').scrollIntoView({ block: 'center', behavior: 'instant' })");
+  await page.sleep(400);
+  await page.screenshot(path.join(HERE, 'results', 'screens', 'sim-export-M.png'));
+  const errM2 = page.consoleErrors();
+  check('không có lỗi console ở viewport M sau khi mở thẻ xuất', errM2.length === 0, errM2.map((e) => e.text.split('\n')[0]).join(' | '));
 } catch (e) {
   check('test chạy hết không văng lỗi', false, String(e && e.message || e).split('\n')[0]);
 } finally {

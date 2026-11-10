@@ -16,6 +16,8 @@
   .sim-bar .sort{ display:flex; gap:8px; align-items:flex-end; flex:1 1 190px; max-width:290px; }
   .sim-bar .sort select{ flex:1; min-width:0; }
   .sim-tools{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .sim-xcount{ margin:12px 0 8px; font-weight:var(--fw-semi); font-variant-numeric:tabular-nums; }
+  #simExportCard .box{ margin:8px 0 0; }
 </style>
 
 <script>
@@ -23,7 +25,7 @@
     Object.assign(I18N.vi, {
       'sim.title':'SIM điện thoại', 'sim.sub':'Danh sách SIM do team POPS và Admin quản lý: số điện thoại, ai đang giữ, ai liên hệ và ai đã điền. SIM không tính vào tồn kho.',
       'sim.search':'Tìm số, tên người, ghi chú…', 'sim.onlyActive':'Đang dùng', 'sim.withDeleted':'Gồm đã xóa',
-      'sim.add':'Thêm SIM', 'sim.reload':'Tải lại',
+      'sim.add':'Thêm SIM', 'sim.reload':'Tải lại', 'sim.export':'Xuất báo cáo',
       'sim.c.phone':'Số điện thoại', 'sim.c.holder':'Người đang giữ', 'sim.c.contact':'Người liên hệ', 'sim.c.requested':'Ngày tạo yêu cầu', 'sim.c.received':'Ngày nhận SIM', 'sim.c.note':'Ghi chú', 'sim.c.by':'Người điền', 'sim.c.time':'Thời gian điền',
       'sim.sortBy':'Sắp xếp theo', 'sim.asc':'Tăng dần (bấm để đổi sang giảm dần)', 'sim.desc':'Giảm dần (bấm để đổi sang tăng dần)',
       'sim.edit':'Sửa', 'sim.delete':'Xóa', 'sim.restore':'Khôi phục', 'sim.save':'Lưu', 'sim.cancel':'Hủy',
@@ -39,7 +41,7 @@
     Object.assign(I18N.en, {
       'sim.title':'Phone SIMs', 'sim.sub':'SIM list managed by the POPS team and Admins: phone number, who holds it, who to contact and who entered it. SIMs are not part of stock.',
       'sim.search':'Search number, person, note…', 'sim.onlyActive':'Active', 'sim.withDeleted':'Include deleted',
-      'sim.add':'Add SIM', 'sim.reload':'Reload',
+      'sim.add':'Add SIM', 'sim.reload':'Reload', 'sim.export':'Export report',
       'sim.c.phone':'Phone number', 'sim.c.holder':'Held by', 'sim.c.contact':'Contact', 'sim.c.requested':'Request date', 'sim.c.received':'SIM received', 'sim.c.note':'Note', 'sim.c.by':'Entered by', 'sim.c.time':'Time entered',
       'sim.sortBy':'Sort by', 'sim.asc':'Ascending (press to switch to descending)', 'sim.desc':'Descending (press to switch to ascending)',
       'sim.edit':'Edit', 'sim.delete':'Delete', 'sim.restore':'Restore', 'sim.save':'Save', 'sim.cancel':'Cancel',
@@ -110,10 +112,12 @@
           '<button class="btn ghost sm" id="simDir" onclick="simSortFlip()"></button></div>' +
         '<div class="btns">' +
           '<button class="btn ghost sm" onclick="simLoad()">' + icon('refresh') + '<span data-i18n="sim.reload"></span></button>' +
+          '<button class="btn ghost sm" onclick="simExportOpen()">' + icon('download') + '<span data-i18n="sim.export"></span></button>' +
           '<button class="btn sm" onclick="simFormOpen(\'\')">' + icon('user') + '<span data-i18n="sim.add"></span></button>' +
         '</div>' +
       '</div>' +
       '<div class="card sim-card" id="simFormCard" hidden></div>' +
+      '<div class="card sim-card" id="simExportCard" hidden></div>' +
       '<div class="box info" id="simInfo" hidden></div>' +
       '<div class="table-wrap tall rt"><table id="simTable" data-no-sort></table></div>' +
       '<datalist id="simPeople"></datalist>';
@@ -256,6 +260,7 @@
     const r = id ? SM.rows.filter(function (x) { return x.id === id; })[0] : null;
     if (id && !r) return;
     SM.editing = id;
+    hide('simExportCard');
     const c = el('simFormCard');
     c.hidden = false;
     c.innerHTML =
