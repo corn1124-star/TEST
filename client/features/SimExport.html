@@ -1,0 +1,64 @@
+<!-- Báo cáo SIM (xuất CSV / XLSX): phần hàm thuần dựng nội dung báo cáo. Giao diện (hộp thoại chọn ngày, nút tải) nằm ở phần sau. -->
+<script>
+  (function () {
+    Object.assign(I18N.vi, {
+      'simx.c.requested':'Ngày tạo yêu cầu', 'simx.c.received':'Ngày nhận SIM', 'simx.c.recipient':'Người nhận', 'simx.c.holder':'Người giữ', 'simx.c.phone':'Số thuê bao',
+    });
+    Object.assign(I18N.en, {
+      'simx.c.requested':'Request date', 'simx.c.received':'SIM received', 'simx.c.recipient':'Recipient', 'simx.c.holder':'Holder', 'simx.c.phone':'Subscriber number',
+    });
+  })();
+
+  /* Lọc + sắp xếp các dòng SIM cho báo cáo.
+     opt = { by: 'requestedOn' | 'receivedOn', from, to } (yyyy-MM-dd, from/to tuỳ chọn, bao gồm hai đầu).
+     So sánh bằng CHUỖI ISO (không dùng new Date('yyyy-MM-dd') vì lệch múi giờ).
+     Bỏ SIM đã xoá; có chặn từ/đến thì bỏ SIM không có ngày đã chọn; xếp mới nhất lên đầu, ngày trống cuối, hoà thì theo số tăng dần. */
+  function simReportRows(rows, opt) {
+    const by = (opt && opt.by) === 'requestedOn' ? 'requestedOn' : 'receivedOn';
+    const from = (opt && opt.from) || '', to = (opt && opt.to) || '';
+    return (rows || []).filter(function (r) {
+      if (!r || r.deleted) return false;
+      const d = r[by] || '';
+      if (from || to) {
+        if (!d) return false;
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+      }
+      return true;
+    }).sort(function (a, b) {
+      const da = a[by] || '', db = b[by] || '';
+      if (da !== db) {
+        if (!da) return 1;
+        if (!db) return -1;
+        return da < db ? 1 : -1;
+      }
+      const pa = String(a.phone || ''), pb = String(b.phone || '');
+      return pa < pb ? -1 : (pa > pb ? 1 : 0);
+    });
+  }
+
+  /* Bảng báo cáo đúng 5 cột: Ngày tạo yêu cầu · Ngày nhận SIM · Người nhận · Người giữ · Số thuê bao.
+     Ngày dạng dd/MM/yyyy (hoặc ''); số thuê bao giữ 10 số liền (XLSX ghi dạng chữ). */
+  function simReportTable(rows) {
+    return {
+      headers: [t('simx.c.requested'), t('simx.c.received'), t('simx.c.recipient'), t('simx.c.holder'), t('simx.c.phone')],
+      rows: (rows || []).map(function (r) {
+        return [simShowDate(r.requestedOn), simShowDate(r.receivedOn), r.contactName || '', r.holderName || '', String(r.phone || '')];
+      }),
+    };
+  }
+
+  /* Các dòng CSV (dòng đầu là tiêu đề). Số thuê bao ghi dạng 0902 343 108 để Excel không bỏ số 0 đầu. */
+  function simCsvLines(table) {
+    const lines = [table.headers.map(csvCell).join(',')];
+    table.rows.forEach(function (r) {
+      lines.push(r.map(function (v, i) { return csvCell(i === 4 ? simShowPhone(v) : v); }).join(','));
+    });
+    return lines;
+  }
+
+  /* SIM_<từ hoặc all>_<đến hoặc all>.<ext> */
+  function simReportFileName(opt, ext) {
+    return 'SIM_' + ((opt && opt.from) || 'all') + '_' + ((opt && opt.to) || 'all') + '.' + ext;
+  }
+</script>
