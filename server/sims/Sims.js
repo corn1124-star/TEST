@@ -13,10 +13,12 @@
 const SH_SIM = 'Sim';
 const SIM = { ID:0, PHONE:1, HOLDER_NAME:2, HOLDER_EMAIL:3, CONTACT_NAME:4, CONTACT_EMAIL:5, NOTE:6,
               CREATED_AT:7, CREATED_BY:8, UPDATED_AT:9, UPDATED_BY:10,
-              DELETED:11, DELETED_AT:12, DELETED_BY:13, SOURCE:14, LEGACY_CODE:15 };
-const SIM_COLS = 16;
+              DELETED:11, DELETED_AT:12, DELETED_BY:13, SOURCE:14, LEGACY_CODE:15,
+              REQUESTED_ON:16, RECEIVED_ON:17 };
+const SIM_COLS = 18;
 const SIM_HEADERS = ['SIM ID','Phone','Holder Name','Holder Email','Contact Name','Contact Email','Note',
-  'Created At','Created By','Updated At','Updated By','Deleted','Deleted At','Deleted By','Source','Legacy Code'];
+  'Created At','Created By','Updated At','Updated By','Deleted','Deleted At','Deleted By','Source','Legacy Code',
+  'Requested On','Received On'];
 
 /* ═══════════ QUYỀN ═══════════ */
 
@@ -79,10 +81,30 @@ function simResolvePerson_(text, people) {
 
 /* ═══════════ ĐỌC / GHI SHEET ═══════════ */
 
-function simSheet_() { return ensureSheet_(SH_SIM, SIM_HEADERS, SIM_COLS); }
+/** Ngày (người gõ / Sheet) -> 'yyyy-MM-dd'. Trả '' nếu rỗng hoặc không hợp lệ (kể cả ngày không có thật như 2026-02-30). */
+function simNormDate_(raw) {
+  if (raw instanceof Date) return isNaN(raw.getTime()) ? '' : Utilities.formatDate(raw, sheetTz_(), 'yyyy-MM-dd');
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(raw == null ? '' : raw).trim());
+  if (!m) return '';
+  const y = +m[1], mo = +m[2], d = +m[3];
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d ? m[0] : '';
+}
+
+/** ensureSheet_ chỉ ghi header khi ô A1 sai, nên sheet 16 cột cũ không tự có 2 header ngày: ghi bù ở đây. */
+function simSheet_() {
+  const sh = ensureSheet_(SH_SIM, SIM_HEADERS, SIM_COLS);
+  const want = SIM_HEADERS.slice(SIM.REQUESTED_ON, SIM.RECEIVED_ON + 1);
+  const have = sh.getRange(1, SIM.REQUESTED_ON + 1, 1, 2).getValues()[0];
+  if (have[0] !== want[0] || have[1] !== want[1]) sh.getRange(1, SIM.REQUESTED_ON + 1, 1, 2).setValues([want]);
+  return sh;
+}
 
 /** Ô số điện thoại phải là dạng chữ, nếu không Sheet bỏ số 0 đầu. Gọi TRƯỚC khi ghi vào hàng row..row+n-1. */
 function simTextPhone_(sh, row, n) { sh.getRange(row, SIM.PHONE + 1, n, 1).setNumberFormat('@'); }
+
+/** Hai ô ngày cũng giữ dạng chữ (yyyy-MM-dd), nếu không Sheet tự đổi thành Date. Gọi TRƯỚC khi ghi. */
+function simTextDates_(sh, row, n) { sh.getRange(row, SIM.REQUESTED_ON + 1, n, 2).setNumberFormat('@'); }
 
 function simRows_() {
   const sh = ss_().getSheetByName(SH_SIM);
@@ -105,7 +127,8 @@ function simRows_() {
       updatedAt: simFmtTime_(r[SIM.UPDATED_AT]), updatedBy: String(r[SIM.UPDATED_BY] || '').trim().toLowerCase(),
       createdTs: r[SIM.CREATED_AT] instanceof Date ? r[SIM.CREATED_AT].getTime() : 0,
       deleted: del, deletedAt: simFmtTime_(r[SIM.DELETED_AT]), deletedBy: String(r[SIM.DELETED_BY] || '').trim().toLowerCase(),
-      source: String(r[SIM.SOURCE] || ''), legacyCode: String(r[SIM.LEGACY_CODE] || '')
+      source: String(r[SIM.SOURCE] || ''), legacyCode: String(r[SIM.LEGACY_CODE] || ''),
+      requestedOn: simNormDate_(r[SIM.REQUESTED_ON]), receivedOn: simNormDate_(r[SIM.RECEIVED_ON])
     });
   });
   return out;
@@ -136,7 +159,8 @@ function simList() {
 
 /**
  * [API — POPS/ADMIN] Thêm (id rỗng) hoặc sửa một SIM.
- * data: { id, phone, holder, contact, note } — holder/contact là chữ gõ hoặc chọn (xem simResolvePerson_).
+ * data: { id, phone, holder, contact, note, requestedOn, receivedOn } — holder/contact là chữ gõ hoặc chọn (xem simResolvePerson_);
+ * requestedOn/receivedOn là 'yyyy-MM-dd' hoặc rỗng (không bắt buộc).
  */
 function simSave(data) {
   try {
@@ -152,6 +176,11 @@ function simSave(data) {
     const contact = simResolvePerson_(data.contact, people);
     if (!holder.name && !contact.name) throw new Error('Cần điền ít nhất một người: đang giữ hoặc liên hệ.');
     const note = String(data.note || '').trim().slice(0, 300);
+    const dates = [data.requestedOn, data.receivedOn].map(function (raw) {
+      const d = simNormDate_(raw);
+      if (String(raw == null ? '' : raw).trim() && !d) throw new Error('Ngày không hợp lệ: ' + raw);
+      return d;
+    });
 
     return withLock_(function () {
       const rows = simRows_();
@@ -165,9 +194,10 @@ function simSave(data) {
         const nid = simId_();
         const at = sh.getLastRow() + 1;
         simTextPhone_(sh, at, 1);
+        simTextDates_(sh, at, 1);
         sh.getRange(at, 1, 1, SIM_COLS).setValues([[
           nid, phone, cell_(holder.name), holder.email, cell_(contact.name), contact.email, cell_(note),
-          now, u.email, '', '', false, '', '', '', ''
+          now, u.email, '', '', false, '', '', '', '', dates[0], dates[1]
         ]]);
         log_(u, 'SIM_CREATE', phone + ' | giữ ' + (holder.name || '-') + ' | liên hệ ' + (contact.name || '-'));
         return { ok: true, id: nid, message: 'Đã thêm SIM ' + phone + '.' };
@@ -181,6 +211,8 @@ function simSave(data) {
       sh.getRange(cur.row, SIM.PHONE + 1, 1, 6).setValues([[
         phone, cell_(holder.name), holder.email, cell_(contact.name), contact.email, cell_(note)
       ]]);
+      simTextDates_(sh, cur.row, 1);
+      sh.getRange(cur.row, SIM.REQUESTED_ON + 1, 1, 2).setValues([dates]);
       sh.getRange(cur.row, SIM.UPDATED_AT + 1, 1, 2).setValues([[now, u.email]]);
       log_(u, 'SIM_UPDATE', cur.phone + (cur.phone !== phone ? '->' + phone : '') + ' | giữ ' + (cur.holderName || '-') + '->' + (holder.name || '-') +
            ' | liên hệ ' + (cur.contactName || '-') + '->' + (contact.name || '-'));
