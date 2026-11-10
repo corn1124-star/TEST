@@ -12,6 +12,7 @@
   .sim-off td{ opacity:.55; }
   .sim-off td:last-child{ opacity:1; }
   .sim-none{ color:var(--n-400); }
+  .sim-date{ font-variant-numeric:tabular-nums; white-space:nowrap; }
   .sim-bar .sort{ display:flex; gap:8px; align-items:flex-end; flex:1 1 190px; max-width:290px; }
   .sim-bar .sort select{ flex:1; min-width:0; }
   .sim-tools{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
@@ -23,12 +24,13 @@
       'sim.title':'SIM điện thoại', 'sim.sub':'Danh sách SIM do team POPS và Admin quản lý: số điện thoại, ai đang giữ, ai liên hệ và ai đã điền. SIM không tính vào tồn kho.',
       'sim.search':'Tìm số, tên người, ghi chú…', 'sim.onlyActive':'Đang dùng', 'sim.withDeleted':'Gồm đã xóa',
       'sim.add':'Thêm SIM', 'sim.reload':'Tải lại',
-      'sim.c.phone':'Số điện thoại', 'sim.c.holder':'Người đang giữ', 'sim.c.contact':'Người liên hệ', 'sim.c.note':'Ghi chú', 'sim.c.by':'Người điền', 'sim.c.time':'Thời gian điền',
+      'sim.c.phone':'Số điện thoại', 'sim.c.holder':'Người đang giữ', 'sim.c.contact':'Người liên hệ', 'sim.c.requested':'Ngày tạo yêu cầu', 'sim.c.received':'Ngày nhận SIM', 'sim.c.note':'Ghi chú', 'sim.c.by':'Người điền', 'sim.c.time':'Thời gian điền',
       'sim.sortBy':'Sắp xếp theo', 'sim.asc':'Tăng dần (bấm để đổi sang giảm dần)', 'sim.desc':'Giảm dần (bấm để đổi sang tăng dần)',
       'sim.edit':'Sửa', 'sim.delete':'Xóa', 'sim.restore':'Khôi phục', 'sim.save':'Lưu', 'sim.cancel':'Hủy',
       'sim.newTitle':'Thêm SIM', 'sim.editTitle':'Sửa SIM',
       'sim.phone':'Số điện thoại', 'sim.phoneHint':'10 số, bắt đầu bằng 0 (nhập +84 hoặc thiếu số 0 vẫn được).',
       'sim.holder':'Người đang giữ', 'sim.contact':'Người liên hệ', 'sim.personPh':'Chọn từ danh sách hoặc gõ tên', 'sim.personHint':'Cần ít nhất một trong hai người. Người ngoài công ty: gõ tên.',
+      'sim.requested':'Ngày tạo yêu cầu', 'sim.received':'Ngày nhận SIM', 'sim.dateHint':'Chọn ngày hoặc để trống nếu chưa có.',
       'sim.note':'Ghi chú',
       'sim.empty':'Chưa có SIM nào. Bấm "Thêm SIM" để bắt đầu.', 'sim.noMatch':'Không có SIM nào khớp.', 'sim.shown':'Hiện {n}/{total} SIM',
       'sim.fromStock':'Nhập từ tồn kho', 'sim.edited':'Sửa', 'sim.deletedBy':'Đã xóa bởi {who} · {at}',
@@ -38,12 +40,13 @@
       'sim.title':'Phone SIMs', 'sim.sub':'SIM list managed by the POPS team and Admins: phone number, who holds it, who to contact and who entered it. SIMs are not part of stock.',
       'sim.search':'Search number, person, note…', 'sim.onlyActive':'Active', 'sim.withDeleted':'Include deleted',
       'sim.add':'Add SIM', 'sim.reload':'Reload',
-      'sim.c.phone':'Phone number', 'sim.c.holder':'Held by', 'sim.c.contact':'Contact', 'sim.c.note':'Note', 'sim.c.by':'Entered by', 'sim.c.time':'Time entered',
+      'sim.c.phone':'Phone number', 'sim.c.holder':'Held by', 'sim.c.contact':'Contact', 'sim.c.requested':'Request date', 'sim.c.received':'SIM received', 'sim.c.note':'Note', 'sim.c.by':'Entered by', 'sim.c.time':'Time entered',
       'sim.sortBy':'Sort by', 'sim.asc':'Ascending (press to switch to descending)', 'sim.desc':'Descending (press to switch to ascending)',
       'sim.edit':'Edit', 'sim.delete':'Delete', 'sim.restore':'Restore', 'sim.save':'Save', 'sim.cancel':'Cancel',
       'sim.newTitle':'Add SIM', 'sim.editTitle':'Edit SIM',
       'sim.phone':'Phone number', 'sim.phoneHint':'10 digits starting with 0 (+84 or a missing leading 0 is fine).',
       'sim.holder':'Held by', 'sim.contact':'Contact person', 'sim.personPh':'Pick from the list or type a name', 'sim.personHint':'At least one of the two. For people outside the company, type a name.',
+      'sim.requested':'Request date', 'sim.received':'SIM received', 'sim.dateHint':'Pick a date, or leave empty if not yet known.',
       'sim.note':'Note',
       'sim.empty':'No SIM yet. Press "Add SIM" to start.', 'sim.noMatch':'No SIM matches.', 'sim.shown':'Showing {n}/{total} SIMs',
       'sim.fromStock':'Imported from stock', 'sim.edited':'Edited', 'sim.deletedBy':'Deleted by {who} · {at}',
@@ -58,11 +61,13 @@
     phone:   { label: 'sim.c.phone',   val: function (r) { return r.phone; } },
     holder:  { label: 'sim.c.holder',  val: function (r) { return r.holderName; } },
     contact: { label: 'sim.c.contact', val: function (r) { return r.contactName; } },
+    requested: { label: 'sim.c.requested', val: function (r) { return r.requestedOn; } },    // chuỗi yyyy-MM-dd so sánh đúng thứ tự thời gian
+    received:  { label: 'sim.c.received',  val: function (r) { return r.receivedOn; } },
     note:    { label: 'sim.c.note',    val: function (r) { return r.note; } },
     by:      { label: 'sim.c.by',      val: function (r) { return r.source === 'Database' ? t('sim.fromStock') : (r.createdByName || r.createdBy); } },
     time:    { label: 'sim.c.time',    val: function (r) { return r.createdTs || 0; } }
   };
-  const SIM_HEAD = ['phone', 'holder', 'contact', 'note', 'by'];    // cột bấm được trên tiêu đề bảng
+  const SIM_HEAD = ['phone', 'holder', 'contact', 'requested', 'received', 'note', 'by'];    // cột bấm được trên tiêu đề bảng
 
   function simSortRows(rows) {
     const s = SIM_SORTS[SM.sort] || SIM_SORTS.time, sign = SM.dir === 'asc' ? 1 : -1;
@@ -123,7 +128,7 @@
   }
 
   function simLoad() {
-    showWait('simInfo', 'simTable', 6);
+    showWait('simInfo', 'simTable', SIM_HEAD.length + 1);
     google.script.run
       .withSuccessHandler(function (res) {
         if (!res || !res.ok) { showBox('simInfo', escapeHtml((res && res.message) || t('msg.error')), 'err'); return; }
@@ -146,6 +151,16 @@
 
   /* 0902343108 -> 0902 343 108 (chỉ để đọc; ô tìm kiếm khớp cả dạng liền) */
   function simShowPhone(p) { return /^\d{10}$/.test(p) ? p.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 $2 $3') : p; }
+
+  /* 2026-11-05 -> 05/11/2026 (lưu yyyy-MM-dd, chỉ hiển thị dd/MM/yyyy); rỗng -> rỗng */
+  function simShowDate(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+  }
+
+  function simDateCell(iso) {
+    return iso ? '<span class="sim-date">' + escapeHtml(simShowDate(iso)) + '</span>' : '<span class="sim-none">—</span>';
+  }
 
   function simPerson(name, email) {
     if (!name) return '<span class="sim-none">—</span>';
@@ -182,7 +197,7 @@
 
     const pool = SM.rows.filter(function (r) { return SM.all || !r.deleted; });
     const rows = simSortRows(pool.filter(function (r) {
-      return !SM.q || (r.phone + ' ' + simShowPhone(r.phone) + ' ' + r.holderName + ' ' + r.holderEmail + ' ' + r.contactName + ' ' + r.contactEmail + ' ' + r.note + ' ' + r.createdByName)
+      return !SM.q || (r.phone + ' ' + simShowPhone(r.phone) + ' ' + r.holderName + ' ' + r.holderEmail + ' ' + r.contactName + ' ' + r.contactEmail + ' ' + simShowDate(r.requestedOn) + ' ' + simShowDate(r.receivedOn) + ' ' + r.note + ' ' + r.createdByName)
         .toLowerCase().indexOf(SM.q) !== -1;
     }));
 
@@ -193,7 +208,7 @@
         '<button type="button" class="th-sort" onclick="simSortBy(\'' + k + '\')">' + escapeHtml(t(SIM_SORTS[k].label)) + icon('chevron-down') + '</button></th>';
     }).join('') + '<th></th></tr></thead>';
     const tb = document.createElement('tbody');
-    if (!rows.length) tb.appendChild(emptyRow(6, t(pool.length ? 'sim.noMatch' : 'sim.empty')));
+    if (!rows.length) tb.appendChild(emptyRow(SIM_HEAD.length + 1, t(pool.length ? 'sim.noMatch' : 'sim.empty')));
 
     rows.forEach(function (r) {
       const tr = document.createElement('tr');
@@ -202,13 +217,15 @@
         '<td class="mono sim-phone">' + escapeHtml(simShowPhone(r.phone)) + '</td>' +
         '<td class="wrap">' + simPerson(r.holderName, r.holderEmail) + '</td>' +
         '<td class="wrap">' + simPerson(r.contactName, r.contactEmail) + '</td>' +
+        '<td>' + simDateCell(r.requestedOn) + '</td>' +
+        '<td>' + simDateCell(r.receivedOn) + '</td>' +
         '<td class="wrap">' + (r.deleted
           ? '<span class="badge neutral">' + escapeHtml(t('sim.deletedBy', { who: r.deletedByName || r.deletedBy, at: r.deletedAt })) + '</span>'
           : (r.note ? escapeHtml(r.note) : '<span class="sim-none">—</span>')) + '</td>' +
         '<td class="wrap">' + simWho(r) + '</td><td></td>';
       const cell = document.createElement('div');
       cell.className = 'sim-tools';
-      tr.cells[5].appendChild(cell);
+      tr.cells[SIM_HEAD.length].appendChild(cell);
       if (r.deleted) {
         cell.appendChild(simBtn(t('sim.restore'), 'refresh', function () { simRestore(r.id); }));
       } else {
@@ -251,6 +268,12 @@
           '<input type="text" id="simFHolder" list="simPeople" maxlength="120" autocomplete="off" placeholder="' + escapeHtml(t('sim.personPh')) + '" value="' + escapeHtml(r ? simPersonText(r.holderName, r.holderEmail) : '') + '"></div>' +
         '<div class="field"><label for="simFContact">' + escapeHtml(t('sim.contact')) + '</label>' +
           '<input type="text" id="simFContact" list="simPeople" maxlength="120" autocomplete="off" placeholder="' + escapeHtml(t('sim.personPh')) + '" value="' + escapeHtml(r ? simPersonText(r.contactName, r.contactEmail) : '') + '"></div>' +
+        '<div class="field w-md"><label for="simFRequested">' + escapeHtml(t('sim.requested')) + '</label>' +
+          '<input type="date" id="simFRequested" value="' + escapeHtml(r ? r.requestedOn : '') + '">' +
+          '<div class="hint">' + escapeHtml(t('sim.dateHint')) + '</div></div>' +
+        '<div class="field w-md"><label for="simFReceived">' + escapeHtml(t('sim.received')) + '</label>' +
+          '<input type="date" id="simFReceived" value="' + escapeHtml(r ? r.receivedOn : '') + '">' +
+          '<div class="hint">' + escapeHtml(t('sim.dateHint')) + '</div></div>' +
         '<div class="field"><label for="simFNote">' + escapeHtml(t('sim.note')) + '</label>' +
           '<input type="text" id="simFNote" maxlength="300" autocomplete="off" value="' + escapeHtml(r ? r.note : '') + '"></div>' +
       '</div>' +
@@ -266,7 +289,8 @@
     const btn = el('simFSave');
     btn.disabled = true;
     const d = { id: SM.editing, phone: el('simFPhone').value, holder: el('simFHolder').value,
-                contact: el('simFContact').value, note: el('simFNote').value };
+                contact: el('simFContact').value, note: el('simFNote').value,
+                requestedOn: el('simFRequested').value, receivedOn: el('simFReceived').value };    // luôn gửi cả hai (rỗng = xoá ngày)
     google.script.run
       .withSuccessHandler(function (res) {
         btn.disabled = false;
