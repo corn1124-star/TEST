@@ -6,11 +6,11 @@
 
 **Architecture:** Sheet `Sim` thêm 2 cột cuối (không đụng dữ liệu cũ), lưu ngày dạng chữ `yyyy-MM-dd`. Trang SIM hiện hai ngày trong form + bảng + sắp xếp. Báo cáo dựng hoàn toàn ở trình duyệt từ `SM.rows` đã tải (không gọi server thêm, không xin thêm quyền); XLSX do một bộ ghi zip/XML nhỏ tự viết, không dùng thư viện ngoài.
 
-**Tech Stack:** Google Apps Script (V8, HtmlService), JS thuần ở client, test bằng QA harness `Downloads\SEC WH QA` (Node 22, Chrome headless).
+**Tech Stack:** Google Apps Script (V8, HtmlService), JS thuần ở client, test bằng QA harness `qa/` trong repo (Node 22, Chrome headless).
 
 **Spec:** Chốt trong chat ngày 2026-11-10 (không có file spec riêng). Tóm tắt: xem "Global Constraints".
 
-**Không phải git repo:** thư mục này không có git, nên kế hoạch không có bước commit. Mốc an toàn là `clasp push`/`clasp deploy` ở Task 6, và các bước chạy test.
+**Git:** repo ở `Downloads/SEC WH`, nhánh làm việc `feat/sim-dates-export`. Sau mỗi task: `git add` đúng các file đã đổi rồi `git commit` (thông điệp ngắn, kết thúc bằng dòng `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`). **Không push** lên GitHub và không `clasp push`/deploy trong lúc thực hiện task.
 
 ## Global Constraints
 
@@ -23,7 +23,7 @@
 - Định dạng: CSV và XLSX (không làm PDF). Tiếng Việt có dấu đúng; số thuê bao giữ số 0 đầu khi mở bằng Excel.
 - Không thêm thư viện ngoài/CDN; không xin thêm OAuth scope; không đổi `appsscript.json`.
 - Giao diện có đủ chuỗi `I18N.vi` và `I18N.en`; dùng class/biến CSS đang có (Theme Grab).
-- Chạy test QA từng suite một (chạy song song gây flaky): `export PATH="$PATH:/c/Users/thanh.phan/AppData/Local/Programs/node-v22.14.0-win-x64"; cd "/c/Users/thanh.phan/Downloads/SEC WH QA"`.
+- Chạy test QA từng suite một (chạy song song gây flaky): `export PATH="$PATH:/c/Users/thanh.phan/AppData/Local/Programs/node-v22.14.0-win-x64"; cd "/c/Users/thanh.phan/Downloads/SEC WH/qa"`. Máy không có Python (không có `openpyxl`), nên bước kiểm bằng Python ở Task 3 bỏ qua.
 
 ## Review Focus
 
@@ -39,7 +39,7 @@
 
 **Files:**
 - Modify: `server/sims/Sims.js` (hằng `SIM`, `SIM_COLS`, `SIM_HEADERS`; `simSheet_`, `simRows_`, `simSave`; thêm `simNormDate_`, `simTextDates_`)
-- Test: `Downloads\SEC WH QA\test-sim-server.mjs` (mới; mô phỏng theo `test-server-mail.mjs`: nạp `server/sims/Sims.js` bằng `vm` với sheet giả trong bộ nhớ)
+- Test: `qa/test-sim-server.mjs` (mới; mô phỏng theo `test-server-mail.mjs`: nạp `server/sims/Sims.js` bằng `vm` với sheet giả trong bộ nhớ)
 
 **Interfaces:**
 - Produces: `SIM.REQUESTED_ON = 16`, `SIM.RECEIVED_ON = 17`, `SIM_COLS = 18`; `simNormDate_(raw: any) -> string` (`''` nếu rỗng/không hợp lệ, ngược lại `'yyyy-MM-dd'`; nhận `Date` thì format theo `sheetTz_()`; ngày không có thật như `2026-02-30` là không hợp lệ); mỗi dòng của `simRows_()`/`simList().rows` có thêm `requestedOn`, `receivedOn` (chuỗi `yyyy-MM-dd` hoặc `''`); `simSave(data)` nhận thêm `data.requestedOn`, `data.receivedOn`.
@@ -61,7 +61,7 @@
 
 **Files:**
 - Modify: `client/features/Sims.html` (I18N vi/en, `SIM_SORTS`, `SIM_HEAD`, `simRender`, `simFormOpen`, `simSave`, thêm `simShowDate`)
-- Test: `Downloads\SEC WH QA\test-sim-ui.mjs` (mới; mẫu: `example-test.mjs`)
+- Test: `qa/test-sim-ui.mjs` (mới; mẫu: `example-test.mjs`)
 
 **Interfaces:**
 - Consumes: `r.requestedOn`, `r.receivedOn` (Task 1); `simSave(data)` nhận `data.requestedOn`/`data.receivedOn`.
@@ -84,7 +84,7 @@
 **Files:**
 - Create: `client/app/Xlsx.html` (khối `<script>`, theo kiểu các file trong `client/app/`)
 - Modify: `client/app/Core.html:274` (`downloadCsv` gọi lại hàm mới `downloadBlob`); `client/Index.html` (thêm `<?!= include('client/app/Xlsx'); ?>` gần dòng 951)
-- Test: `Downloads\SEC WH QA\test-xlsx.mjs` (mới)
+- Test: `qa/test-xlsx.mjs` (mới)
 
 **Interfaces:**
 - Produces: `xlsxBuild(sheetName: string, headers: string[], rows: string[][]) -> Uint8Array` (mọi ô là chữ `inlineStr`; hàng tiêu đề in đậm; tên sheet cắt ≤31 ký tự và bỏ `[]:*?/\`); `downloadBlob(filename: string, blob: Blob) -> void` (hành vi như phần tạo thẻ `<a>` hiện có của `downloadCsv`).
@@ -101,7 +101,7 @@
 **Files:**
 - Create: `client/features/SimExport.html` (script; phần hàm thuần; phần giao diện thêm ở Task 5)
 - Modify: `client/Index.html` (include `client/features/SimExport` **trước** dòng include `client/features/Sims`, và sau `client/app/Xlsx`)
-- Test: `Downloads\SEC WH QA\test-sim-export.mjs` (mới)
+- Test: `qa/test-sim-export.mjs` (mới)
 
 **Interfaces:**
 - Consumes: `simShowDate`, `simShowPhone` (Sims.html), `csvCell` (Core.html), `xlsxBuild` (Task 3).

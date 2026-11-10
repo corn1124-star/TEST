@@ -5,3 +5,4 @@ qa/results/
 qa/dist/
 node_modules/
 .clasp.json
+.superpowers/
