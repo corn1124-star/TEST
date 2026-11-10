@@ -1,0 +1,118 @@
+<!-- Trang Quản lý: các mục thu gọn "Giao dịch đã xóa" (khôi phục) và "Yêu cầu đã xử lý" (xóa). Gắn vào <div id="adminToolsMount">. -->
+<style>
+  .at-card{ margin-top:16px; padding:0; overflow:hidden; }
+  .at-card > summary{ list-style:none; cursor:pointer; padding:16px 20px; font-weight:700; font-size:var(--fs-base); display:flex; align-items:center; gap:12px; }
+  .at-card > summary::-webkit-details-marker{ display:none; }
+  .at-card > summary::before{ content:'▸'; color:var(--g-600); transition:transform .15s ease; }
+  .at-card[open] > summary::before{ transform:rotate(90deg); }
+  .at-card .at-body{ padding:0 20px 20px; }
+  .at-hint{ color:var(--n-500); font-size:var(--fs-sm); margin:0 0 12px; }
+</style>
+
+<script>
+  Object.assign(I18N.vi, {
+    'at.deleted':'Giao dịch đã xóa', 'at.deletedHint':'Xóa mềm: khôi phục được. Khôi phục ghi lại như giao dịch mới.',
+    'at.deletedEmpty':'Chưa có giao dịch nào bị xóa.', 'at.req':'Yêu cầu đã xử lý', 'at.reqHint':'Đã duyệt hoặc từ chối. Xóa là xóa hẳn (ghi vào nhật ký).',
+    'at.reqEmpty':'Chưa có yêu cầu nào đã xử lý.',
+    'at.c.when':'Xóa lúc', 'at.c.by':'Người xóa', 'at.c.reason':'Lý do', 'at.c.item':'Giao dịch', 'at.c.boxes':'Thùng',
+    'at.c.id':'Mã', 'at.c.status':'Trạng thái', 'at.c.user':'Người gửi', 'at.c.req':'Yêu cầu', 'at.c.note':'Ghi chú duyệt'
+  });
+  Object.assign(I18N.en, {
+    'at.deleted':'Deleted transactions', 'at.deletedHint':'Soft delete: restorable. Restoring posts it again as a new transaction.',
+    'at.deletedEmpty':'No deleted transactions.', 'at.req':'Processed requests', 'at.reqHint':'Approved or rejected. Deleting is permanent (written to the audit log).',
+    'at.reqEmpty':'No processed requests.',
+    'at.c.when':'Deleted at', 'at.c.by':'Deleted by', 'at.c.reason':'Reason', 'at.c.item':'Transaction', 'at.c.boxes':'Boxes',
+    'at.c.id':'ID', 'at.c.status':'Status', 'at.c.user':'Sender', 'at.c.req':'Request', 'at.c.note':'Decision note'
+  });
+
+  let AT_BUILT = false, AT_DEL = [], AT_REQ = [];
+
+  function atOnEnter() {
+    if (!IS_ADMIN || AT_BUILT) { if (AT_BUILT) { atRefreshOpen(); } return; }
+    const m = el('adminToolsMount');
+    if (!m) return;
+    AT_BUILT = true;
+    m.innerHTML =
+      '<details class="card at-card" id="atDeleted"><summary>' + escapeHtml(t('at.deleted')) + ' <span class="badge neutral" id="atDeletedN"></span></summary>' +
+        '<div class="at-body"><p class="at-hint">' + escapeHtml(t('at.deletedHint')) + '</p><div class="table-wrap short"><table id="atDeletedTbl"></table></div></div></details>' +
+      '<details class="card at-card" id="atReq"><summary>' + escapeHtml(t('at.req')) + ' <span class="badge neutral" id="atReqN"></span></summary>' +
+        '<div class="at-body"><p class="at-hint">' + escapeHtml(t('at.reqHint')) + '</p><div class="table-wrap short"><table id="atReqTbl"></table></div></div></details>';
+    el('atDeleted').addEventListener('toggle', function () { if (this.open) atLoadDeleted(); });
+    el('atReq').addEventListener('toggle', function () { if (this.open) atLoadReq(); });
+  }
+
+  function atRefreshOpen() {
+    if (el('atDeleted') && el('atDeleted').open) atLoadDeleted();
+    if (el('atReq') && el('atReq').open) atLoadReq();
+  }
+
+  function atLoadDeleted() {
+    google.script.run.withSuccessHandler(function (res) {
+      if (!res || !res.ok) { toast((res && res.message) || t('msg.error'), 'err'); return; }
+      AT_DEL = res.rows; setText('atDeletedN', AT_DEL.length || '');
+      const tb = el('atDeletedTbl');
+      tb.innerHTML = '<thead><tr><th>' + [t('at.c.when'), t('at.c.item'), t('at.c.boxes'), t('at.c.by'), t('at.c.reason'), ''].map(escapeHtml).join('</th><th>') + '</th></tr></thead>';
+      const body = document.createElement('tbody');
+      if (!AT_DEL.length) body.appendChild(emptyRow(6, t('at.deletedEmpty')));
+      AT_DEL.forEach(function (r, i) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + escapeHtml(r.deletedAt) + '</td><td class="wrap"><span class="badge ' + (r.type === 'Import' ? 'in' : 'out') + '">' + escapeHtml(txLabel(r.type)) + '</span> ' +
+          num(r.qty) + ' ' + escapeHtml(r.unit) + ' · ' + escapeHtml(r.name) + (r.variant ? ' · ' + escapeHtml(r.variant) : '') +
+          '<div class="cell-sub mono">' + escapeHtml(r.code) + ' · ' + escapeHtml(fmt(r.date)) + '</div></td><td class="num">' + (r.boxes || '—') + '</td>' +
+          '<td>' + escapeHtml(r.deletedBy) + '</td><td class="wrap">' + escapeHtml(r.reason) + '</td><td></td>';
+        const b = document.createElement('button'); b.className = 'btn ghost sm'; b.textContent = t('del.restore');
+        b.onclick = function () { atRestore(r); };
+        tr.cells[5].appendChild(b);
+        body.appendChild(tr);
+      });
+      tb.appendChild(body);
+    }).withFailureHandler(function (e) { toast(t('msg.error') + ': ' + (e.message || e), 'err'); }).listDeletedTransactions(100);
+  }
+
+  function atRestore(r) {
+    uiDialog({ title: t('del.restoreTitle'), body: t('del.restoreBody', { info: txLabel(r.type) + ' ' + r.qty + ' ' + r.unit + ' · ' + r.code }), okLabel: t('del.restoreOk') }, function () {
+      google.script.run.withSuccessHandler(function (res) {
+        if (!res || !res.ok) { toast((res && res.message) || t('msg.error'), 'err'); return; }
+        toast(res.message); atLoadDeleted(); reloadData();
+      }).withFailureHandler(function (e) { toast(t('msg.error') + ': ' + (e.message || e), 'err'); }).restoreTransaction(r.archiveRow, { code: r.code, deletedAt: r.deletedAt });
+    });
+  }
+
+  function atLoadReq() {
+    google.script.run.withSuccessHandler(function (res) {
+      if (!res || !res.ok) { toast((res && res.message) || t('msg.error'), 'err'); return; }
+      AT_REQ = res.rows; setText('atReqN', AT_REQ.length || '');
+      const tb = el('atReqTbl');
+      tb.innerHTML = '<thead><tr><th>' + [t('at.c.id'), t('at.c.status'), t('at.c.user'), t('at.c.req'), t('at.c.note'), ''].map(escapeHtml).join('</th><th>') + '</th></tr></thead>';
+      const body = document.createElement('tbody');
+      if (!AT_REQ.length) body.appendChild(emptyRow(6, t('at.reqEmpty')));
+      AT_REQ.forEach(function (r) {
+        const bd = reqBadge(r.status);
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td class="mono">' + escapeHtml(r.requestId) + '</td><td><span class="badge ' + bd.cls + '">' + escapeHtml(bd.label) + '</span></td>' +
+          '<td>' + escapeHtml(r.user) + '<div class="cell-sub">' + escapeHtml(r.cc) + '</div></td>' +
+          '<td class="wrap"><span class="badge ' + (r.type === 'Import' ? 'in' : 'out') + '">' + escapeHtml(txLabel(r.type)) + '</span> ' + num(r.quantity) + ' ' + escapeHtml(r.unit) + ' · ' + escapeHtml(r.name) + '</td>' +
+          '<td class="wrap">' + escapeHtml(r.note) + '</td><td></td>';
+        const b = document.createElement('button'); b.className = 'btn ghost sm danger'; b.textContent = t('del.btn');
+        b.onclick = function () { doDeleteReq(r.requestId, atLoadReq); };
+        tr.cells[5].appendChild(b);
+        body.appendChild(tr);
+      });
+      tb.appendChild(body);
+    }).withFailureHandler(function (e) { toast(t('msg.error') + ': ' + (e.message || e), 'err'); }).getProcessedRequests(100);
+  }
+
+  /** Xóa hẳn 1 yêu cầu (đang chờ hoặc đã xử lý). after = hàm tải lại danh sách đang xem. */
+  function doDeleteReq(requestId, after) {
+    // Đang duyệt hàng loạt: không xóa yêu cầu có thể nằm trong lô (apIsBusy do pages/AdminAndTickets.html cung cấp)
+    if (typeof window.apIsBusy === 'function' && window.apIsBusy()) return;
+    uiDialog({ title: t('del.reqTitle'), body: t('del.reqBody', { id: requestId }), reason: 'optional', okLabel: t('del.ok'), danger: true }, function (reason) {
+      google.script.run.withSuccessHandler(function (res) {
+        if (!res || !res.ok) { toast((res && res.message) || t('msg.error'), 'err'); return; }
+        toast(res.message);
+        if (after) after();
+        if (typeof loadApproval === 'function') loadApproval();
+      }).withFailureHandler(function (e) { toast(t('msg.error') + ': ' + (e.message || e), 'err'); }).adminDeleteRequest(requestId, reason);
+    });
+  }
+</script>

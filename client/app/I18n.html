@@ -1,0 +1,802 @@
+<script>
+  /* ══════════════════════════════════════════════════════════════
+     TỪ ĐIỂN SONG NGỮ VI / EN
+     ══════════════════════════════════════════════════════════════
+     Mọi chữ người dùng thấy PHẢI nằm ở đây, không hard-code trong HTML/JS.
+     Đổi thuật ngữ chỉ cần sửa 1 nơi, không phải rà toàn bộ code.
+
+     CÁCH DÙNG TRONG HTML:
+       data-i18n="key"        -> đặt innerHTML
+       data-i18n-ph="key"     -> đặt placeholder
+       data-i18n-title="key"  -> đặt title (tooltip)
+
+     CÁCH DÙNG TRONG JS:  t('key')  ·  t('key', { n: 5 })
+
+     THUẬT NGỮ (nhất quán toàn app — KHÔNG dùng inbound/outbound/receipt/issue):
+       Import         = nhập kho        Export        = xuất kho
+       Import ticket  = phiếu nhập kho  Export ticket = phiếu xuất kho
+       Stock on hand  = tồn kho hiện tại
+       Requester      = người yêu cầu   Cost centre   = trung tâm chi phí
+       Bin location   = vị trí trong kho (kho · kệ · tầng kệ)
+       Box            = thùng           Box code      = mã thùng (.B01)
+     ══════════════════════════════════════════════════════════════ */
+  const I18N = {
+
+    /* ═══════════════ TIẾNG VIỆT ═══════════════ */
+    vi: {
+      'app.name'            : 'Grab Inventory Management',
+      'app.short'           : 'Inventory',
+      'app.org'             : 'Grab Việt Nam',
+      'lang.switch'         : 'Switch to English',
+      'lang.current'        : 'VI',
+
+      /* ── Điều hướng (7 trang) ── */
+      'nav.home'            : 'Tổng quan',
+      'nav.kho'             : 'Kho',
+      'nav.history'         : 'Lịch sử',
+      'nav.me'              : 'Của tôi',
+      'nav.admin'           : 'Quản trị',
+      'nav.ticket'          : 'Phiếu kho',
+      'nav.groupAdmin'      : 'QUẢN TRỊ',
+      'nav.collapse'        : 'Thu gọn thanh điều hướng',
+      'nav.expand'          : 'Mở rộng thanh điều hướng',
+
+      /* ── Vai trò ── */
+      'role.admin'          : 'Quản trị viên',
+      'role.member'         : 'Nhân viên',
+      'role.adminScope'     : 'xem toàn bộ Cost Centre',
+      'role.memberScope'    : 'chỉ Cost Centre của bạn',
+
+      /* ── Loại giao dịch ── */
+      'tx.import'           : 'Nhập kho',
+      'tx.export'           : 'Xuất kho',
+      'tx.importShort'      : 'Nhập',
+      'tx.exportShort'      : 'Xuất',
+
+      /* ── Hành động ── */
+      'act.refresh'         : 'Tải lại dữ liệu',
+      'act.reload'          : 'Tải lại',
+      'act.save'            : 'Lưu thay đổi',
+      'act.cancel'          : 'Huỷ',
+      'act.clear'           : 'Xóa form',
+      'act.clearFilter'     : 'Xóa bộ lọc',
+      'act.export'          : 'Xuất CSV',
+      'act.edit'            : 'Sửa',
+      'act.delete'          : 'Xóa',
+      'act.approve'         : 'Duyệt',
+      'act.reject'          : 'Từ chối',
+      'act.retry'           : 'Thử lại',
+      'act.markAllRead'     : 'Đánh dấu đã đọc hết',
+      'act.viewHistory'     : 'Xem lịch sử giao dịch',
+      'act.viewItem'        : 'Xem chi tiết mặt hàng và thùng',
+      'act.processing'      : 'Đang xử lý…',
+      'act.sending'         : 'Đang gửi…',
+      'act.saving'          : 'Đang lưu…',
+      'act.loading'         : 'Đang tải…',
+
+      /* ── Thông báo (chỉ ở chuông) ── */
+      'noti.title'          : 'Thông báo',
+      'noti.unreadCount'    : '{n} chưa đọc',
+      'noti.tabUnread'      : 'Chưa đọc',
+      'noti.tabAll'         : 'Tất cả',
+      'noti.emptyUnread'    : 'Không có thông báo chưa đọc.',
+      'noti.emptyAll'       : 'Chưa có thông báo nào.',
+      'noti.markRead'       : 'Đánh dấu đã đọc',
+      'noti.read'           : 'Đã đọc',
+      'noti.goAdmin'        : 'Xem yêu cầu chờ duyệt',
+      'noti.goMe'           : 'Xem yêu cầu của tôi',
+
+      /* ── Người dùng ── */
+      'user.authenticating' : 'Đang xác thực…',
+      'user.costCenter'     : 'Cost Centre',
+      'user.department'     : 'Bộ phận',
+      'user.role'           : 'Vai trò',
+
+      /* ── Landing ── */
+      'land.connect'        : 'Đang xác thực và tải dữ liệu kho…',
+      'land.render'         : 'Đang dựng màn hình…',
+      'land.wait'           : 'Đã chờ {n} giây',
+      'land.slow'           : 'Lần tải đầu có thể mất 10-20 giây. Vui lòng chờ…',
+      'land.errTitle'       : 'Không thể khởi tạo ứng dụng',
+      'land.errHelp'        : 'Cách xử lý:',
+      'land.errHelp1'       : 'Kiểm tra bạn đang đăng nhập bằng tài khoản Google công ty (không dùng Gmail cá nhân).',
+      'land.errHelp2'       : 'Tài khoản của bạn phải có trong sheet Team. Liên hệ quản trị viên nếu chưa có.',
+      'land.errHelp3'       : 'Nếu vừa được cấp quyền, chờ khoảng 1 phút rồi bấm Thử lại.',
+      'land.done'           : 'Hoàn tất',
+
+      /* ── Tổng quan ── */
+      'home.title'          : 'Tổng quan',
+      'home.scope'          : 'Phạm vi dữ liệu',
+      'home.scopeAll'       : 'Toàn bộ Cost Centre',
+      'home.negWarn'        : 'Có <b>{n}</b> mã tồn kho ÂM. Cần kiểm tra lại dữ liệu.',
+      'kpi.assets'          : 'Mã tài sản',
+      'kpi.stock'           : 'Tồn kho hiện tại',
+      'kpi.tx'              : 'Giao dịch',
+      'kpi.alert'           : 'Cần chú ý',
+      'kpi.value'           : 'Giá trị đã nhập',
+      'kpi.assetsFoot'      : 'mã đang theo dõi',
+      'kpi.stockFoot'       : '{box} thùng đã nhập',
+      'kpi.txFoot'          : 'nhập {imp} · xuất {exp}',
+      'kpi.alertFoot'       : 'sắp hết, hết hoặc âm',
+
+      /* ── Biểu đồ ── */
+      'chart.timeseries'    : 'Số lượng nhập / xuất theo thời gian',
+      'chart.tabDay'        : '30 ngày',
+      'chart.tabWeek'       : '12 tuần',
+      'chart.tabMonth'      : '12 tháng',
+      'chart.teamShare'     : 'Tỷ trọng theo Cost Centre',
+      'chart.byCategory'    : 'Tồn kho theo nhóm hàng',
+      'chart.noData'        : 'Chưa có dữ liệu để vẽ biểu đồ.',
+      'chart.totalIn'       : 'tổng nhập',
+      'chart.totalOut'      : 'tổng xuất',
+
+      /* ── Trang Kho ── */
+      'kho.title'           : 'Kho',
+      'kho.sub'             : 'Ghi nhận nhập kho, xuất kho và theo dõi tồn kho hiện tại',
+      'kho.chooseAction'    : 'Chọn loại giao dịch',
+      'kho.importing'       : 'Đang nhập kho',
+      'kho.exporting'       : 'Đang xuất kho — chọn mặt hàng còn tồn',
+      'kho.pickHint'        : 'Bảng dưới chỉ hiện mặt hàng CÒN TỒN. Bấm vào dòng để mở form xuất kho.',
+      'kho.stockTitle'      : 'Tồn kho',
+      'kho.noStock'         : 'Không có mặt hàng nào khớp bộ lọc.',
+      'kho.memberNote'      : 'Bạn đang ở vai trò Nhân viên. Mọi giao dịch bạn tạo sẽ được gửi tới quản trị viên phê duyệt trước khi vào hệ thống.',
+      'kho.submitImport'    : 'Gửi yêu cầu nhập kho',
+      'kho.submitExport'    : 'Gửi yêu cầu xuất kho',
+      'kho.doImport'        : 'Nhập kho',
+      'kho.doExport'        : 'Xuất kho',
+      'kho.seeMyReq'        : 'Xem tình trạng ở trang Của tôi',
+
+      /* ── 4 bước của form nhập kho ── */
+      'step.identify'       : 'Định danh hàng hóa',
+      'step.identifySub'    : 'Các trường này quyết định SKU — điền đúng ngay từ đầu vì mã không đổi được sau khi tạo',
+      'step.qty'            : 'Số lượng & đóng thùng',
+      'step.qtySub'         : 'Khai số thùng rồi nhập số lượng thực tế trong từng thùng',
+      'step.where'          : 'Thời gian & vị trí',
+      'step.whereSub'       : 'Ngày nhập và kho tiếp nhận hàng',
+      'step.doc'            : 'Chứng từ mua',
+      'step.docSub'         : 'PO, hóa đơn, nhà cung cấp và giá mua',
+
+      /* ── Asset Code ── */
+      'code.label'          : 'MÃ TÀI SẢN (ASSET CODE) — HỆ THỐNG TỰ SINH',
+      'code.waiting'        : 'Điền nhóm hàng, tên hàng và event để hệ thống sinh mã',
+      'code.reused'         : 'Mặt hàng này đã có trong kho — dùng lại mã cũ, số lượng sẽ cộng dồn.',
+      'code.new'            : 'Mã mới, chưa từng có trong hệ thống.',
+      'code.needVariant'    : 'Phân nhóm này bắt buộc nhập biến thể trước khi sinh mã.',
+
+      /* ── 6 phân đoạn của Asset Code ── */
+      'cpart.cc'            : 'Team',
+      'cpart.cat'           : 'Nhóm',
+      'cpart.seq'           : 'Số',
+      'cpart.name'          : 'Tên',
+      'cpart.var'           : 'Biến thể',
+      'cpart.evt'           : 'Event',
+      'cpart.none'          : '(không có)',
+
+      /* ── Chi tiết thùng ── */
+      'box.inputTitle'      : 'Chi tiết từng thùng',
+      'box.inputHint'       : 'Nhập số lượng thực tế trong mỗi thùng. Tổng phải khớp Số lượng ở trên, nếu lệch hệ thống sẽ từ chối.',
+      'box.splitEven'       : 'Chia đều',
+      'box.clearQty'        : 'Xóa số',
+      'box.label'           : 'Thùng {n}',
+      'box.totalOk'         : 'Tổng: <b>{sum}</b> / {qty} — khớp số lượng nhập',
+      'box.totalBad'        : 'Tổng: <b>{sum}</b> / {qty} — <b>lệch {diff}</b>, chưa gửi được',
+      'box.totalEmpty'      : 'Còn <b>{n}</b> thùng chưa nhập số lượng',
+      'box.detailTitle'     : 'Chi tiết thùng',
+      'box.noData'          : 'Mặt hàng này chưa có dữ liệu chi tiết thùng. Chỉ hàng nhập sau khi bật tính năng thùng mới có dữ liệu này.',
+      'box.summary'         : '<b>{n}</b> thùng · còn hàng <b>{left}</b> thùng · đã nhập <b>{in}</b> · còn lại <b>{rest}</b> · đã xuất <b>{out}</b>',
+      'box.moveList'        : 'Đã xuất:',
+      'box.noMove'          : 'Chưa xuất lần nào',
+      'box.emptyBox'        : 'Đã hết',
+
+      /* ── Biểu mẫu ── */
+      'form.select'         : '— Chọn —',
+      'form.selectFirst'    : '— Chọn nhóm hàng trước —',
+      'form.type'           : 'Loại giao dịch',
+      'form.date'           : 'Ngày',
+      'form.dateIn'         : 'Ngày nhập',
+      'form.dateOut'        : 'Ngày xuất',
+      'form.category'       : 'Nhóm hàng',
+      'form.subCategory'    : 'Phân nhóm',
+      'form.name'           : 'Tên hàng',
+      'form.variant'        : 'Biến thể',
+      'form.variantHint'    : 'Bắt buộc với hàng có size hoặc màu (Size S, Size M, Đỏ…)',
+      'form.event'          : 'Event',
+      'form.qty'            : 'Số lượng',
+      'form.qtyOut'         : 'Số lượng xuất',
+      'form.unit'           : 'Đơn vị',
+      'form.box'            : 'Số thùng',
+      'form.boxHint'        : 'Điền 0 nếu hàng không đóng thùng',
+      'form.location'       : 'Địa điểm',
+      'form.locationIn'     : 'Nhập vào kho',
+      'form.locationOut'    : 'Xuất đến',
+      'form.po'             : 'PO No',
+      'form.invoice'        : 'Số hóa đơn',
+      'form.supplier'       : 'Nhà cung cấp',
+      'form.price'          : 'Giá mua (VND)',
+      'form.requester'      : 'Người yêu cầu',
+      'form.username'       : 'Tên đăng nhập',
+      'form.email'          : 'Email',
+      'form.from'           : 'Từ ngày',
+      'form.to'             : 'Đến ngày',
+      'form.keyword'        : 'Tìm kiếm',
+      'form.searchPh'       : 'Tìm mã, tên hàng, event, vị trí…',
+      'form.searchStockPh'  : 'Tìm theo mã hoặc tên hàng…',
+      'form.searchUserPh'   : 'Tìm theo email, tên hoặc Cost Centre…',
+      'form.available'      : 'Tồn khả dụng: {n} {unit}',
+
+      /* ── Vị trí trong kho ── */
+      'bin.label'           : 'Vị trí trong kho',
+      'bin.empty'           : 'Chưa gán vị trí',
+
+      /* ── Trang Sơ đồ kho ── */
+
+      /* ── Bộ lọc / trạng thái ── */
+      'filter.all'          : 'Tất cả',
+      'filter.inOut'        : 'Nhập và xuất',
+      'filter.onlyIn'       : 'Chỉ nhập kho',
+      'filter.onlyOut'      : 'Chỉ xuất kho',
+      'filter.allUsers'     : 'Tất cả người dùng',
+      'filter.allCats'      : 'Tất cả nhóm hàng',
+      'filter.allLocs'      : 'Tất cả địa điểm',
+      'filter.allCcs'       : 'Tất cả Cost Centre',
+      'filter.outAndNeg'    : 'Hết và âm',
+      'st.inStock'          : 'Còn hàng',
+      'st.lowStock'         : 'Sắp hết',
+      'st.outStock'         : 'Hết hàng',
+      'st.negStock'         : 'Tồn âm',
+      'st.pending'          : 'Chờ duyệt',
+      'st.approved'         : 'Đã duyệt',
+      'st.rejected'         : 'Bị từ chối',
+
+      /* ── Cột bảng ── */
+      'col.no'              : 'STT',
+      'col.sheetRow'        : 'Dòng Sheet',
+      'col.level'           : 'Mức tồn',
+      'col.assetCode'       : 'SKU',
+      'col.type'            : 'Loại',
+      'col.category'        : 'Nhóm hàng',
+      'col.subCategory'     : 'Phân nhóm',
+      'col.name'            : 'Tên hàng',
+      'col.variant'         : 'Biến thể',
+      'col.event'           : 'Event',
+      'col.qty'             : 'Số lượng',
+      'col.box'             : 'Số thùng',
+      'col.boxIn'           : 'Thùng đã nhập',
+      'col.unit'            : 'Đơn vị',
+      'col.date'            : 'Ngày',
+      'col.location'        : 'Địa điểm',
+      'col.bin'             : 'Vị trí',
+      'col.requester'       : 'Người yêu cầu',
+      'col.poInvoice'       : 'PO / Hoá đơn',
+      'col.imported'        : 'Đã nhập',
+      'col.exported'        : 'Đã xuất',
+      'col.stock'           : 'Tồn kho',
+      'col.running'         : 'Tồn sau GD',
+      'col.lastTx'          : 'GD gần nhất',
+      'col.product'         : 'Sản phẩm',
+      'col.status'          : 'Trạng thái',
+      'col.submittedAt'     : 'Thời điểm gửi',
+      'col.decision'        : 'Kết quả xử lý',
+      'col.purchaseInfo'    : 'Thông tin mua',
+      'col.boxCode'         : 'Mã thùng',
+      'col.boxNo'           : 'Thùng',
+      'col.boxIn2'          : 'Nhập vào',
+      'col.boxLeft'         : 'Còn lại',
+      'col.boxOut'          : 'Đã xuất',
+      'col.boxMoves'        : 'Lịch sử xuất thùng',
+      'col.action'          : '',
+
+      /* ── Lịch sử ── */
+      'hist.title'          : 'Lịch sử giao dịch',
+      'hist.scopeAdmin'     : 'Đang xem: <b>{scope}</b> · bạn có thể sửa mọi giao dịch',
+      'hist.scopeMember'    : 'Chỉ hiện giao dịch của <b>{name}</b>',
+      'hist.noResult'       : 'Không có giao dịch nào khớp bộ lọc.',
+      'hist.editTitle'      : 'Sửa giao dịch',
+      'hist.lockedHint'     : 'Các trường phía trên không sửa được vì là yếu tố sinh Asset Code. Nếu sai, hãy sửa trực tiếp trên Sheet.',
+
+      /* ── Chi tiết mặt hàng ── */
+      'item.title'          : 'Chi tiết mặt hàng',
+      'item.timeline'       : 'Lịch sử nhập / xuất và tồn kho theo thời gian',
+      'item.close'          : 'Đóng',
+      'item.sumLine'        : 'Đã nhập <b>{imp}</b> · Đã xuất <b>{exp}</b> · Tồn hiện tại <b>{stock}</b> {unit} · <b>{n}</b> giao dịch · {from} → {to}',
+      'item.searchNote'     : 'Đang lọc theo từ khóa: <b>{kw}</b>',
+
+      /* ── Trang Của tôi ── */
+      'me.title'            : 'Của tôi',
+      'me.sub'              : 'Hồ sơ và toàn bộ yêu cầu bạn đã gửi. Thông báo xem ở chuông trên thanh tiêu đề.',
+      'me.profile'          : 'Hồ sơ của bạn',
+      'me.reqTitle'         : 'Yêu cầu bạn đã gửi',
+      'me.kpiPending'       : 'Đang chờ duyệt',
+      'me.kpiApproved'      : 'Đã được duyệt',
+      'me.kpiRejected'      : 'Bị từ chối',
+      'me.kpiFoot'          : 'bấm để xem danh sách',
+      'me.noReq'            : 'Bạn chưa gửi yêu cầu nào.',
+
+            /* ── Của tôi · Thành viên cùng team ── */
+      'col.reqQty'    : 'SL yêu cầu',
+      'col.impQty'    : 'SL đã nhập',
+      'col.finalQty'  : 'SL cuối cùng',
+      'col.supplier'  : 'Nhà cung cấp',
+
+
+      /* ── Quản trị ── */
+      'adm.title'           : 'Quản trị',
+      'adm.sub'             : 'Duyệt yêu cầu nhập / xuất kho và quản lý người dùng hệ thống',
+      'adm.pendingTitle'    : 'Yêu cầu chờ duyệt',
+      'adm.noPending'       : 'Không có yêu cầu nào đang chờ duyệt.',
+      'adm.userTitle'       : 'Quản lý người dùng',
+      'adm.userAdd'         : 'Thêm người dùng mới',
+      'adm.userEdit'        : 'Sửa người dùng',
+      'adm.userSaveAdd'     : 'Thêm người dùng mới',
+      'adm.userSaveEdit'    : 'Lưu thay đổi',
+      'adm.userCount'       : 'Hiện <b>{n}</b> / <b>{total}</b> người dùng · <b>{admin}</b> quản trị viên',
+      'adm.noUser'          : 'Không có người dùng nào khớp bộ lọc.',
+      'adm.userLinkHint'    : 'Bấm vào tên đăng nhập để xem toàn bộ giao dịch của người đó.',
+      'adm.emailLocked'     : 'Email là khóa định danh, không sửa được. Muốn đổi email thì xóa rồi thêm lại.',
+
+      /* ── Phiếu kho ── */
+      'ticket.title'        : 'Phiếu nhập / xuất kho',
+      'ticket.sub'          : 'Gom giao dịch theo ngày và người yêu cầu, in ra phiếu PDF có chỗ ký nhận',
+      'ticket.filterFrom'   : 'Từ ngày',
+      'ticket.filterTo'     : 'Đến ngày',
+      'ticket.load'         : 'Xem phiếu',
+      'ticket.count'        : 'Tìm thấy <b>{n}</b> phiếu từ {from} đến {to}',
+      'ticket.none'         : 'Không có giao dịch nào trong khoảng ngày đã chọn.',
+      'ticket.printOne'     : 'In phiếu',
+      'ticket.printAll'     : 'In tất cả',
+      'ticket.itemCount'    : 'Số mặt hàng',
+      'ticket.totalQty'     : 'Tổng số lượng',
+      'ticket.totalBox'     : 'Tổng số thùng',
+      'ticket.pdfHint'      : 'Trong hộp thoại in, chọn <b>Đích: Lưu thành PDF</b> để xuất file.',
+      'ticket.print'        : 'In / Lưu PDF',
+      'ticket.close'        : 'Đóng',
+      'ticket.popupBlocked' : 'Vui lòng cho phép pop-up cho trang này để in phiếu.',
+
+      /* ── Hộp thoại xác nhận ── */
+      'cf.import'           : 'Xác nhận NHẬP KHO {qty} {unit} — {name}?',
+      'cf.export'           : 'Xác nhận XUẤT KHO {qty} {unit} — {name}?\nTồn kho sẽ giảm còn {left}.',
+      'cf.submitImport'     : 'Gửi yêu cầu NHẬP KHO {qty} {unit} — {name}?\nYêu cầu sẽ chờ quản trị viên phê duyệt.',
+      'cf.submitExport'     : 'Gửi yêu cầu XUẤT KHO {qty} {unit} — {name}?\nYêu cầu sẽ chờ quản trị viên phê duyệt.',
+      'cf.approve'          : 'DUYỆT yêu cầu {id}?\n{user} · {type} · {qty} {unit} — {name}\n\nDữ liệu sẽ được ghi vào hệ thống ngay.',
+      'cf.reject'           : 'Nhập lý do TỪ CHỐI yêu cầu {id}:',
+      'cf.deleteUser'       : 'XÓA người dùng {email}?\n\nNgười này sẽ mất quyền truy cập ứng dụng và nhận được email thông báo.',
+      'cf.deleteUserWhy'    : 'Nhập lý do xóa (sẽ gửi trong email cho {email}):',
+      'cf.saveEdit'         : 'Lưu thay đổi cho dòng {row}?',
+
+      /* ── Thông điệp hệ thống ── */
+      'msg.loading'         : 'Đang tải dữ liệu…',
+      'msg.loadingSlow'     : 'Máy chủ phản hồi chậm hơn bình thường. Vui lòng chờ…',
+      'msg.error'           : 'Lỗi',
+      'msg.noData'          : 'Chưa có dữ liệu.',
+      'msg.notLoaded'       : 'Chưa tải dữ liệu. Bấm Tải lại.',
+      'msg.noDataExport'    : 'Không có dữ liệu để xuất.',
+      'msg.needAdmin'       : 'Chức năng này chỉ dành cho quản trị viên.',
+      'msg.stockSummary'    : 'Hiện <b>{n}</b> / <b>{total}</b> mã · tồn <b>{stock}</b> · <b>{box}</b> thùng đã nhập',
+      'msg.showingTx'       : 'Hiện <b>{n}</b> / <b>{total}</b> giao dịch',
+      'msg.txSummary'       : 'nhập <b>{imp}</b> ({box} thùng) · xuất <b>{exp}</b>',
+      'msg.pendingCount'    : 'Có <b>{n}</b> yêu cầu chờ duyệt',
+      'msg.myReqCount'      : 'Hiện <b>{n}</b> / <b>{total}</b> yêu cầu',
+      'msg.searchHint'      : 'Bấm vào <b>Asset Code</b> để xem lịch sử giao dịch và chi tiết từng thùng. Ô tìm kiếm bên dưới lọc theo mã, tên hàng, biến thể, event, nhóm hàng, địa điểm, vị trí, người yêu cầu, PO hoặc hóa đơn.',
+      'msg.overStock'       : 'Vượt tồn kho — chỉ còn {n} {unit}',
+      'msg.qtyRequired'     : 'Vui lòng nhập số lượng lớn hơn 0.',
+      'msg.locRequired'     : 'Vui lòng chọn địa điểm.',
+      'msg.dateRequired'    : 'Vui lòng chọn ngày.',
+      'msg.boxMismatch'     : 'Tổng số lượng các thùng chưa khớp Số lượng nhập. Kiểm tra lại bảng chi tiết thùng.',
+
+      /* ── Tên file CSV ── */
+      'file.stock'          : 'ton-kho',
+      'file.history'        : 'lich-su'
+    },
+
+    /* ═══════════════ ENGLISH ═══════════════ */
+    en: {
+      'app.name'            : 'Grab Inventory Management',
+      'app.short'           : 'Inventory',
+      'app.org'             : 'Grab Vietnam',
+      'lang.switch'         : 'Chuyển sang Tiếng Việt',
+      'lang.current'        : 'EN',
+
+      /* ── Navigation (7 pages) ── */
+      'nav.home'            : 'Dashboard',
+      'nav.kho'             : 'Inventory',
+      'nav.history'         : 'Transactions',
+      'nav.me'              : 'My page',
+      'nav.admin'           : 'Administration',
+      'nav.ticket'          : 'Tickets',
+      'nav.groupAdmin'      : 'ADMINISTRATION',
+      'nav.collapse'        : 'Collapse sidebar',
+      'nav.expand'          : 'Expand sidebar',
+
+      /* ── Roles ── */
+      'role.admin'          : 'Administrator',
+      'role.member'         : 'Staff',
+      'role.adminScope'     : 'all cost centres',
+      'role.memberScope'    : 'your cost centre only',
+
+      /* ── Transaction types ── */
+      'tx.import'           : 'Import',
+      'tx.export'           : 'Export',
+      'tx.importShort'      : 'Import',
+      'tx.exportShort'      : 'Export',
+
+      /* ── Actions ── */
+      'act.refresh'         : 'Reload data',
+      'act.reload'          : 'Reload',
+      'act.save'            : 'Save changes',
+      'act.cancel'          : 'Cancel',
+      'act.clear'           : 'Clear form',
+      'act.clearFilter'     : 'Clear filters',
+      'act.export'          : 'Export CSV',
+      'act.edit'            : 'Edit',
+      'act.delete'          : 'Delete',
+      'act.approve'         : 'Approve',
+      'act.reject'          : 'Reject',
+      'act.retry'           : 'Retry',
+      'act.markAllRead'     : 'Mark all read',
+      'act.viewHistory'     : 'View transactions',
+      'act.viewItem'        : 'View item and box detail',
+      'act.processing'      : 'Processing…',
+      'act.sending'         : 'Submitting…',
+      'act.saving'          : 'Saving…',
+      'act.loading'         : 'Loading…',
+
+      /* ── Notifications (bell only) ── */
+      'noti.title'          : 'Notifications',
+      'noti.unreadCount'    : '{n} unread',
+      'noti.tabUnread'      : 'Unread',
+      'noti.tabAll'         : 'All',
+      'noti.emptyUnread'    : 'No unread notifications.',
+      'noti.emptyAll'       : 'No notifications yet.',
+      'noti.markRead'       : 'Mark as read',
+      'noti.read'           : 'Read',
+      'noti.goAdmin'        : 'Review pending requests',
+      'noti.goMe'           : 'View my requests',
+
+      /* ── User ── */
+      'user.authenticating' : 'Authenticating…',
+      'user.costCenter'     : 'Cost centre',
+      'user.department'     : 'Department',
+      'user.role'           : 'Role',
+
+      /* ── Landing ── */
+      'land.connect'        : 'Verifying your account and loading stock data…',
+      'land.render'         : 'Preparing the screen…',
+      'land.wait'           : 'Waited {n} s',
+      'land.slow'           : 'The first load may take 10-20 seconds. Please wait…',
+      'land.errTitle'       : 'Unable to start the application',
+      'land.errHelp'        : 'How to fix this:',
+      'land.errHelp1'       : 'Make sure you are signed in with your company Google account, not a personal Gmail.',
+      'land.errHelp2'       : 'Your account must be listed in the Team sheet. Contact an administrator if it is not.',
+      'land.errHelp3'       : 'If access was just granted, wait about a minute and click Retry.',
+      'land.done'           : 'Done',
+
+      /* ── Dashboard ── */
+      'home.title'          : 'Dashboard',
+      'home.scope'          : 'Data scope',
+      'home.scopeAll'       : 'All cost centres',
+      'home.negWarn'        : '<b>{n}</b> asset code(s) have NEGATIVE stock. Please review the data.',
+      'kpi.assets'          : 'Asset codes',
+      'kpi.stock'           : 'Stock on hand',
+      'kpi.tx'              : 'Transactions',
+      'kpi.alert'           : 'Needs attention',
+      'kpi.value'           : 'Received value',
+      'kpi.assetsFoot'      : 'codes tracked',
+      'kpi.stockFoot'       : '{box} carton(s) received',
+      'kpi.txFoot'          : 'imported {imp} · exported {exp}',
+      'kpi.alertFoot'       : 'low, out or negative',
+
+      /* ── Charts ── */
+      'chart.timeseries'    : 'Import and export quantity over time',
+      'chart.tabDay'        : '30 days',
+      'chart.tabWeek'       : '12 weeks',
+      'chart.tabMonth'      : '12 months',
+      'chart.teamShare'     : 'Share by cost centre',
+      'chart.byCategory'    : 'Stock on hand by category',
+      'chart.noData'        : 'Not enough data to draw the chart.',
+      'chart.totalIn'       : 'total imported',
+      'chart.totalOut'      : 'total exported',
+
+      /* ── Inventory page ── */
+      'kho.title'           : 'Inventory',
+      'kho.sub'             : 'Record imports and exports, and monitor stock on hand',
+      'kho.chooseAction'    : 'Choose a transaction type',
+      'kho.importing'       : 'Recording an import',
+      'kho.exporting'       : 'Recording an export — select an item in stock',
+      'kho.pickHint'        : 'The table below only lists items IN STOCK. Click a row to open the export form.',
+      'kho.stockTitle'      : 'Stock on hand',
+      'kho.noStock'         : 'No item matches the current filters.',
+      'kho.memberNote'      : 'You are signed in as Staff. Every transaction you create is submitted to an administrator for approval before it enters the system.',
+      'kho.submitImport'    : 'Submit import request',
+      'kho.submitExport'    : 'Submit export request',
+      'kho.doImport'        : 'Record import',
+      'kho.doExport'        : 'Record export',
+      'kho.seeMyReq'        : 'Track its status on My page',
+
+      /* ── 4 steps of the import form ── */
+      'step.identify'       : 'Identify the item',
+      'step.identifySub'    : 'These 4 fields determine the asset code — get them right the first time, the code cannot be changed later',
+      'step.qty'            : 'Quantity & cartons',
+      'step.qtySub'         : 'Declare the carton count, then enter the actual quantity inside each carton',
+      'step.where'          : 'Date & location',
+      'step.whereSub'       : 'Import date and the warehouse receiving the goods',
+      'step.doc'            : 'Purchase documents',
+      'step.docSub'         : 'PO, invoice, supplier and purchase price',
+
+      /* ── Asset code ── */
+      'code.label'          : 'ASSET CODE — GENERATED BY THE SYSTEM',
+      'code.waiting'        : 'Fill in category, item name and event to generate the code',
+      'code.reused'         : 'This item already exists — reusing its code; quantities will be added up.',
+      'code.new'            : 'New code, not seen in the system before.',
+      'code.needVariant'    : 'This sub-category requires a variant before the code can be generated.',
+
+      /* ── 6 segments of the asset code ── */
+      'cpart.cc'            : 'Team',
+      'cpart.cat'           : 'Category',
+      'cpart.seq'           : 'Seq',
+      'cpart.name'          : 'Name',
+      'cpart.var'           : 'Variant',
+      'cpart.evt'           : 'Event',
+      'cpart.none'          : '(none)',
+
+      /* ── Box detail ── */
+      'box.inputTitle'      : 'Carton breakdown',
+      'box.inputHint'       : 'Enter the actual quantity inside each carton. The total must match the quantity above, otherwise the system will reject it.',
+      'box.splitEven'       : 'Split evenly',
+      'box.clearQty'        : 'Clear',
+      'box.label'           : 'Carton {n}',
+      'box.totalOk'         : 'Total: <b>{sum}</b> / {qty} — matches the import quantity',
+      'box.totalBad'        : 'Total: <b>{sum}</b> / {qty} — <b>off by {diff}</b>, cannot submit',
+      'box.totalEmpty'      : '<b>{n}</b> carton(s) still have no quantity',
+      'box.detailTitle'     : 'Carton detail',
+      'box.noData'          : 'This item has no carton data. Only goods imported after the carton feature was enabled carry this information.',
+      'box.summary'         : '<b>{n}</b> carton(s) · <b>{left}</b> still holding stock · received <b>{in}</b> · remaining <b>{rest}</b> · issued <b>{out}</b>',
+      'box.moveList'        : 'Issued:',
+      'box.noMove'          : 'Never issued',
+      'box.emptyBox'        : 'Empty',
+
+      /* ── Forms ── */
+      'form.select'         : '— Select —',
+      'form.selectFirst'    : '— Select a category first —',
+      'form.type'           : 'Transaction type',
+      'form.date'           : 'Date',
+      'form.dateIn'         : 'Import date',
+      'form.dateOut'        : 'Export date',
+      'form.category'       : 'Category',
+      'form.subCategory'    : 'Sub-category',
+      'form.name'           : 'Item name',
+      'form.variant'        : 'Variant',
+      'form.variantHint'    : 'Required for items with a size or colour (Size S, Size M, Red…)',
+      'form.event'          : 'Event',
+      'form.qty'            : 'Quantity',
+      'form.qtyOut'         : 'Quantity to export',
+      'form.unit'           : 'Unit',
+      'form.box'            : 'Cartons',
+      'form.boxHint'        : 'Enter 0 if the goods are not boxed',
+      'form.location'       : 'Location',
+      'form.locationIn'     : 'Import into',
+      'form.locationOut'    : 'Export to',
+      'form.po'             : 'PO No',
+      'form.invoice'        : 'Invoice no.',
+      'form.supplier'       : 'Supplier',
+      'form.price'          : 'Purchase price (VND)',
+      'form.requester'      : 'Requester',
+      'form.username'       : 'Username',
+      'form.email'          : 'Email',
+      'form.from'           : 'From date',
+      'form.to'             : 'To date',
+      'form.keyword'        : 'Search',
+      'form.searchPh'       : 'Search code, item name, event, bin…',
+      'form.searchStockPh'  : 'Search by code or item name…',
+      'form.searchUserPh'   : 'Search by email, name or cost centre…',
+      'form.available'      : 'Available: {n} {unit}',
+
+      /* ── Bin location ── */
+      'bin.label'           : 'Bin location',
+      'bin.empty'           : 'No bin assigned',
+
+      /* ── Warehouse map page ── */
+
+      /* ── Filters / statuses ── */
+      'filter.all'          : 'All',
+      'filter.inOut'        : 'Import and export',
+      'filter.onlyIn'       : 'Import only',
+      'filter.onlyOut'      : 'Export only',
+      'filter.allUsers'     : 'All users',
+      'filter.allCats'      : 'All categories',
+      'filter.allLocs'      : 'All locations',
+      'filter.allCcs'       : 'All cost centres',
+      'filter.outAndNeg'    : 'Out and negative',
+      'st.inStock'          : 'In stock',
+      'st.lowStock'         : 'Low stock',
+      'st.outStock'         : 'Out of stock',
+      'st.negStock'         : 'Negative',
+      'st.pending'          : 'Pending',
+      'st.approved'         : 'Approved',
+      'st.rejected'         : 'Rejected',
+
+      /* ── Table columns ── */
+      'col.no'              : 'No.',
+      'col.sheetRow'        : 'Sheet row',
+      'col.level'           : 'Level',
+      'col.assetCode'       : 'Asset code',
+      'col.type'            : 'Type',
+      'col.category'        : 'Category',
+      'col.subCategory'     : 'Sub-category',
+      'col.name'            : 'Item name',
+      'col.variant'         : 'Variant',
+      'col.event'           : 'Event',
+      'col.qty'             : 'Quantity',
+      'col.box'             : 'Cartons',
+      'col.boxIn'           : 'Cartons received',
+      'col.unit'            : 'Unit',
+      'col.date'            : 'Date',
+      'col.location'        : 'Location',
+      'col.bin'             : 'Bin',
+      'col.requester'       : 'Requester',
+      'col.poInvoice'       : 'PO / Invoice',
+      'col.imported'        : 'Imported',
+      'col.exported'        : 'Exported',
+      'col.stock'           : 'Stock',
+      'col.running'         : 'Balance',
+      'col.lastTx'          : 'Last transaction',
+      'col.product'         : 'Product',
+      'col.status'          : 'Status',
+      'col.submittedAt'     : 'Submitted at',
+      'col.decision'        : 'Decision',
+      'col.purchaseInfo'    : 'Purchase info',
+      'col.boxCode'         : 'Carton code',
+      'col.boxNo'           : 'Carton',
+      'col.boxIn2'          : 'Received',
+      'col.boxLeft'         : 'Remaining',
+      'col.boxOut'          : 'Issued',
+      'col.boxMoves'        : 'Carton issue history',
+      'col.action'          : '',
+
+      /* ── Transactions ── */
+      'hist.title'          : 'Transaction history',
+      'hist.scopeAdmin'     : 'Viewing: <b>{scope}</b> · you can edit any transaction',
+      'hist.scopeMember'    : 'Showing transactions for <b>{name}</b> only',
+      'hist.noResult'       : 'No transaction matches the current filters.',
+      'hist.editTitle'      : 'Edit transaction',
+      'hist.lockedHint'     : 'The fields above cannot be edited because they generate the asset code. If they are wrong, correct them directly in the Sheet.',
+
+      /* ── Item detail ── */
+      'item.title'          : 'Item detail',
+      'item.timeline'       : 'Import / export history and stock balance over time',
+      'item.close'          : 'Close',
+      'item.sumLine'        : 'Imported <b>{imp}</b> · Exported <b>{exp}</b> · On hand <b>{stock}</b> {unit} · <b>{n}</b> transaction(s) · {from} → {to}',
+      'item.searchNote'     : 'Filtered by keyword: <b>{kw}</b>',
+
+      /* ── My page ── */
+      'me.title'            : 'My page',
+      'me.sub'              : 'Your profile and every request you have submitted. Notifications live in the bell on the header.',
+      'me.profile'          : 'Your profile',
+      'me.reqTitle'         : 'Requests you submitted',
+      'me.kpiPending'       : 'Awaiting approval',
+      'me.kpiApproved'      : 'Approved',
+      'me.kpiRejected'      : 'Rejected',
+      'me.kpiFoot'          : 'click to see the list',
+      'me.noReq'            : 'You have not submitted any request yet.',
+
+      'col.reqQty'    : 'Requested qty',
+      'col.impQty'    : 'Imported qty',
+      'col.finalQty'  : 'Final qty',
+      'col.supplier'  : 'Supplier',
+
+
+      /* ── Administration ── */
+      'adm.title'           : 'Administration',
+      'adm.sub'             : 'Approve import and export requests, and manage system users',
+      'adm.pendingTitle'    : 'Pending requests',
+      'adm.noPending'       : 'No request is awaiting approval.',
+      'adm.userTitle'       : 'User management',
+      'adm.userAdd'         : 'Add a new user',
+      'adm.userEdit'        : 'Edit user',
+      'adm.userSaveAdd'     : 'Add new user',
+      'adm.userSaveEdit'    : 'Save changes',
+      'adm.userCount'       : 'Showing <b>{n}</b> / <b>{total}</b> user(s) · <b>{admin}</b> administrator(s)',
+      'adm.noUser'          : 'No user matches the current filters.',
+      'adm.userLinkHint'    : 'Click a username to view every transaction by that person.',
+      'adm.emailLocked'     : 'Email is the identity key and cannot be edited. To change it, delete the user and add them again.',
+
+      /* ── Tickets ── */
+      'ticket.title'        : 'Import and export tickets',
+      'ticket.sub'          : 'Group transactions by date and requester, then print them as PDF tickets with signature blocks',
+      'ticket.filterFrom'   : 'From date',
+      'ticket.filterTo'     : 'To date',
+      'ticket.load'         : 'View tickets',
+      'ticket.count'        : 'Found <b>{n}</b> ticket(s) between {from} and {to}',
+      'ticket.none'         : 'No transaction found in the selected date range.',
+      'ticket.printOne'     : 'Print ticket',
+      'ticket.printAll'     : 'Print all',
+      'ticket.itemCount'    : 'Line items',
+      'ticket.totalQty'     : 'Total quantity',
+      'ticket.totalBox'     : 'Total cartons',
+      'ticket.pdfHint'      : 'In the print dialog, choose <b>Destination: Save as PDF</b> to export the file.',
+      'ticket.print'        : 'Print / Save as PDF',
+      'ticket.close'        : 'Close',
+      'ticket.popupBlocked' : 'Please allow pop-ups for this site in order to print tickets.',
+
+      /* ── Confirmations ── */
+      'cf.import'           : 'Confirm IMPORT of {qty} {unit} — {name}?',
+      'cf.export'           : 'Confirm EXPORT of {qty} {unit} — {name}?\nStock on hand will drop to {left}.',
+      'cf.submitImport'     : 'Submit an IMPORT request for {qty} {unit} — {name}?\nThe request will await administrator approval.',
+      'cf.submitExport'     : 'Submit an EXPORT request for {qty} {unit} — {name}?\nThe request will await administrator approval.',
+      'cf.approve'          : 'APPROVE request {id}?\n{user} · {type} · {qty} {unit} — {name}\n\nThe data will be written to the system immediately.',
+      'cf.reject'           : 'Enter the reason for REJECTING request {id}:',
+      'cf.deleteUser'       : 'DELETE user {email}?\n\nThey will lose access to the application and receive a notification email.',
+      'cf.deleteUserWhy'    : 'Enter the reason for deletion (it will be included in the email to {email}):',
+      'cf.saveEdit'         : 'Save changes to row {row}?',
+
+      /* ── System messages ── */
+      'msg.loading'         : 'Loading data…',
+      'msg.loadingSlow'     : 'The server is slower than usual. Please wait…',
+      'msg.error'           : 'Error',
+      'msg.noData'          : 'No data yet.',
+      'msg.notLoaded'       : 'Data not loaded. Click Reload.',
+      'msg.noDataExport'    : 'Nothing to export.',
+      'msg.needAdmin'       : 'This feature is for administrators only.',
+      'msg.stockSummary'    : 'Showing <b>{n}</b> / <b>{total}</b> code(s) · on hand <b>{stock}</b> · <b>{box}</b> carton(s) received',
+      'msg.showingTx'       : 'Showing <b>{n}</b> / <b>{total}</b> transaction(s)',
+      'msg.txSummary'       : 'imported <b>{imp}</b> ({box} cartons) · exported <b>{exp}</b>',
+      'msg.pendingCount'    : '<b>{n}</b> request(s) awaiting approval',
+      'msg.myReqCount'      : 'Showing <b>{n}</b> / <b>{total}</b> request(s)',
+      'msg.searchHint'      : 'Click an <b>asset code</b> to see its transaction history and carton breakdown. The search box below filters by asset code, item name, variant, event, category, location, bin, requester, PO or invoice.',
+      'msg.overStock'       : 'Exceeds stock on hand — only {n} {unit} left',
+      'msg.qtyRequired'     : 'Please enter a quantity greater than 0.',
+      'msg.locRequired'     : 'Please select a location.',
+      'msg.dateRequired'    : 'Please select a date.',
+      'msg.boxMismatch'     : 'The carton total does not match the import quantity. Check the carton breakdown.',
+
+      /* ── CSV file names ── */
+      'file.stock'          : 'stock-on-hand',
+      'file.history'        : 'transactions'
+    }
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     ĐỘNG CƠ DỊCH
+     ══════════════════════════════════════════════════════════════ */
+
+  let LANG = 'vi';
+
+  /**
+   * Lấy chuỗi đã dịch. {placeholder} được thay bằng giá trị trong vars.
+   * Không tìm thấy key -> trả về chính key để lộ ra ngay khi thiếu chuỗi.
+   */
+  function t(key, vars) {
+    let s = (I18N[LANG] && I18N[LANG][key]) || (I18N.vi[key]) || key;
+
+    if (vars) {
+      Object.keys(vars).forEach(function (k) {
+        s = s.split('{' + k + '}').join(String(vars[k]));
+      });
+    }
+    return s;
+  }
+
+  /** Quét DOM, áp dụng toàn bộ chuỗi theo LANG hiện tại. */
+  function applyI18n() {
+    document.documentElement.lang = LANG;
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      el.innerHTML = t(el.getAttribute('data-i18n'));
+    });
+    document.querySelectorAll('[data-i18n-ph]').forEach(function (el) {
+      el.placeholder = t(el.getAttribute('data-i18n-ph'));
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(function (el) {
+      el.title = t(el.getAttribute('data-i18n-title'));
+    });
+
+    // Tooltip sidebar ở chế độ rail
+    document.querySelectorAll('[data-tip-key]').forEach(function (el) {
+      el.setAttribute('data-tip', t(el.getAttribute('data-tip-key')));
+    });
+
+    setText('langLabel', t('lang.current'));
+    const lb = el('langBtn');
+    if (lb) lb.title = t('lang.switch');
+
+    document.title = t('app.name');
+  }
+</script>

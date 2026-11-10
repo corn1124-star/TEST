@@ -1,0 +1,535 @@
+<!-- Trang BÁO CÁO. Tự dựng section #page-report khi nạp (nằm sau #page-ticket). Nạp SAU I18n/Core/Toast. -->
+<style>
+  .rp-tabs{ display:flex; gap:4px; flex-wrap:wrap; border-bottom:1px solid var(--n-200); margin:0 0 16px; }
+  .rp-tab{
+    padding:12px 16px; border:0; background:none; cursor:pointer; font:inherit; font-weight:500; color:var(--n-600);
+    border-bottom:3px solid transparent; margin-bottom:0px; min-height:0;
+  }
+  .rp-tab:hover{ color:var(--n-900); }
+  .rp-tab.on{ color:var(--g-700); border-bottom-color:var(--color-board); font-weight:600; }
+  .rp-filters{ display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin:0 0 16px; }
+  .rp-filters .field{ flex:0 1 180px; min-width:130px; }
+  .rp-filters label.chk{ display:flex; gap:8px; align-items:center; height:40px; }
+  .rp-unit{ display:flex; flex-direction:column; gap:4px; }
+  .rp-unit > span{ font-size:var(--fs-sm); font-weight:600; color:var(--n-600); }
+  .rp-seg{ display:inline-flex; border:1px solid var(--n-300); border-radius:var(--r-md); overflow:hidden; background:var(--n-000); }
+  .rp-seg button{ border:0; background:none; padding:0 16px; height:38px; cursor:pointer; font:inherit; font-weight:500; color:var(--n-700); min-height:0; border-radius:0; }
+  .rp-seg button + button{ border-left:1px solid var(--n-300); }
+  .rp-seg button:hover{ background:var(--n-050); }
+  .rp-seg button.on{ background:var(--g-600); color:var(--n-000); font-weight:600; }
+  .rp-quick .rp-seg button{ padding:0 12px; white-space:nowrap; }
+  .rp-checks{ display:flex; gap:20px; align-items:center; min-height:40px; }
+  .rp-checks .chk{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-weight:500; color:var(--n-900); }
+  /* điện thoại: khoảng nhanh thành lưới 2 cột (không bẻ chữ), tab vừa màn hình */
+  @media (max-width:600px){
+    .rp-quick .rp-seg{ display:grid; grid-template-columns:1fr 1fr; width:100%; }
+    .rp-quick .rp-seg button{ height:44px; }
+    .rp-quick .rp-seg button:nth-child(odd){ border-left:0; }
+    .rp-quick .rp-seg button:nth-child(n+3){ border-top:1px solid var(--n-300); }
+    #rpTabs .rp-tab{ padding:12px 12px; font-size:var(--fs-md); }
+    .rp-filters .field{ flex:1 1 100%; }
+  }
+  #rpTable tfoot td{ font-weight:700; background:var(--n-050); border-top:2px solid var(--n-300); }
+  #page-report [hidden]{ display:none !important; }
+</style>
+
+<script>
+  (function () {
+    const vi = {
+      'nav.report':'Báo cáo', 'rp.title':'Báo cáo', 'rp.sub':'Chọn báo cáo, chọn xem theo cái hay thùng, rồi xuất CSV hoặc in.',
+      'rp.t.nxt':'Nhập – Xuất – Tồn', 'rp.t.stock':'Tồn kho', 'rp.t.alert':'Cảnh báo tồn',
+      'rp.unit':'Hiển thị theo', 'rp.u.each':'Cái', 'rp.u.box':'Thùng', 'rp.u.both':'Cả hai',
+      'rp.from':'Từ ngày', 'rp.to':'Đến ngày', 'rp.cat':'Nhóm hàng', 'rp.allCats':'Tất cả nhóm',
+      'rp.loc':'Địa điểm', 'rp.allLocs':'Tất cả địa điểm', 'rp.hideZero':'Ẩn mã hết hàng',
+      'rp.run':'Xem báo cáo', 'rp.csv':'Xuất CSV', 'rp.print':'In',
+      'rp.type':'Loại cảnh báo', 'rp.a.out':'Hết hàng / tồn âm', 'rp.a.low':'Sắp hết', 'rp.a.slow':'Chậm luân chuyển',
+      'rp.days':'Không xuất quá (ngày)',
+      'rp.c.code':'SKU', 'rp.c.name':'Tên hàng', 'rp.c.cat':'Nhóm', 'rp.c.unit':'ĐVT',
+      'rp.c.open':'Tồn đầu', 'rp.c.in':'Nhập', 'rp.c.out':'Xuất', 'rp.c.close':'Tồn cuối',
+      'rp.c.stock':'Tồn', 'rp.c.boxLeft':'Thùng còn hàng', 'rp.c.bin':'Vị trí', 'rp.c.loc':'Địa điểm',
+      'rp.c.lastOut':'Xuất gần nhất', 'rp.c.idle':'Ngày chưa xuất',
+      'rp.s.items':'Số mã', 'rp.s.units':'Tổng tồn',
+      'rp.suffix.each':'cái', 'rp.suffix.box':'thùng',
+      'rp.never':'Chưa từng xuất', 'rp.empty':'Không có dữ liệu cho bộ lọc này.',
+      'rp.trunc':'Chỉ hiện {n} dòng đầu; hãy thu hẹp bộ lọc.', 'rp.loading':'Đang tính…', 'rp.period':'Kỳ: {a} → {b}',
+      'rp.page':'{a}–{b} / {n}', 'rp.boxNote':'Số thùng chỉ có cho mã đã khai chi tiết thùng khi nhập.',
+      'rp.quick':'Khoảng nhanh', 'rp.p.month':'Tháng này', 'rp.p.prev':'Tháng trước', 'rp.p.week':'7 ngày', 'rp.p.quarter':'Quý này',
+      'rp.total':'Tổng', 'rp.nItems':'{n} mã', 'rp.badRange':'Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.'
+    };
+    const en = {
+      'nav.report':'Reports', 'rp.title':'Reports', 'rp.sub':'Pick a report, view by units or boxes, then export CSV or print.',
+      'rp.t.nxt':'Opening · In · Out · Closing', 'rp.t.stock':'Stock', 'rp.t.alert':'Stock alerts',
+      'rp.unit':'Show by', 'rp.u.each':'Units', 'rp.u.box':'Boxes', 'rp.u.both':'Both',
+      'rp.from':'From', 'rp.to':'To', 'rp.cat':'Category', 'rp.allCats':'All categories',
+      'rp.loc':'Location', 'rp.allLocs':'All locations', 'rp.hideZero':'Hide zero-stock items',
+      'rp.run':'Run report', 'rp.csv':'Export CSV', 'rp.print':'Print',
+      'rp.type':'Alert type', 'rp.a.out':'Out of stock / negative', 'rp.a.low':'Low stock', 'rp.a.slow':'Slow moving',
+      'rp.days':'No issue for more than (days)',
+      'rp.c.code':'SKU', 'rp.c.name':'Item', 'rp.c.cat':'Category', 'rp.c.unit':'Unit',
+      'rp.c.open':'Opening', 'rp.c.in':'In', 'rp.c.out':'Out', 'rp.c.close':'Closing',
+      'rp.c.stock':'Stock', 'rp.c.boxLeft':'Boxes in stock', 'rp.c.bin':'Bin', 'rp.c.loc':'Location',
+      'rp.c.lastOut':'Last issue', 'rp.c.idle':'Days idle',
+      'rp.s.items':'Items', 'rp.s.units':'Total units',
+      'rp.suffix.each':'units', 'rp.suffix.box':'boxes',
+      'rp.never':'Never issued', 'rp.empty':'No data for this filter.',
+      'rp.trunc':'Showing the first {n} rows; narrow the filter.', 'rp.loading':'Calculating…', 'rp.period':'Period: {a} → {b}',
+      'rp.page':'{a}–{b} / {n}', 'rp.boxNote':'Box counts exist only for items whose boxes were declared at receipt.',
+      'rp.quick':'Quick range', 'rp.p.month':'This month', 'rp.p.prev':'Last month', 'rp.p.week':'7 days', 'rp.p.quarter':'This quarter',
+      'rp.total':'Total', 'rp.nItems':'{n} items', 'rp.badRange':'The start date must be on or before the end date.'
+    };
+    Object.assign(I18N.vi, vi);
+    Object.assign(I18N.en, en);
+  })();
+
+  const RP_PAGE_SIZE = 100;
+  let RP = { tab: 'nxt', unit: 'each', cols: [], rows: [], summary: [], page: 0, subtitle: '', truncated: 0, built: false, nxt: null, foot: null };
+  let RP_BUSY = false, RP_AGAIN = false, RP_T = 0;
+
+  /* ── dựng khung trang một lần ── */
+  function rpBuild() {
+    if (RP.built) return;
+    const host = el('page-ticket') && el('page-ticket').parentNode;
+    if (!host) return;
+
+    const s = document.createElement('section');
+    s.className = 'page'; s.id = 'page-report';
+    s.innerHTML =
+      '<h1 class="page-title" data-i18n="rp.title"></h1><p class="page-sub" data-i18n="rp.sub"></p>' +
+      '<div class="rp-tabs" id="rpTabs" role="tablist"></div>' +
+      '<div class="rp-filters" id="rpFilters"></div>' +
+      '<div class="odoo-stats" id="rpSummary" hidden></div>' +
+      '<div class="odoo-actions" id="rpActions" hidden>' +
+        '<button class="btn ghost" onclick="rpCsv()"><svg aria-hidden="true" class="ico"><use href="#i-download"></use></svg><span data-i18n="rp.csv"></span></button>' +
+        '<button class="btn ghost" onclick="rpPrint()"><svg aria-hidden="true" class="ico"><use href="#i-printer"></use></svg><span data-i18n="rp.print"></span></button>' +
+        '<span class="cell-sub" id="rpNote"></span>' +
+      '</div>' +
+      '<div class="table-wrap tall rt"><table id="rpTable"></table></div>' +
+      '<div class="odoo-pager" id="rpPager"></div>';
+    host.appendChild(s);
+    RP.built = true;
+    applyI18n();
+  }
+
+  function rpOnEnter() { rpBuild(); rpTab(RP.tab); }
+
+  /* ── chọn Cái / Thùng / Cả hai ── */
+  function rpUnitHtml() {
+    const each = RP.unit !== 'box', box = RP.unit !== 'each';
+    return '<div class="rp-unit"><span>' + escapeHtml(t('rp.unit')) + '</span><div class="rp-checks" id="rpUnitChecks" role="group" aria-label="' + escapeHtml(t('rp.unit')) + '">' +
+      '<label class="chk"><input type="checkbox" id="rpUEach"' + (each ? ' checked' : '') + ' onchange="rpUnitTick(\x27each\x27)"><span>' + escapeHtml(t('rp.u.each')) + '</span></label>' +
+      '<label class="chk"><input type="checkbox" id="rpUBox"' + (box ? ' checked' : '') + ' onchange="rpUnitTick(\x27box\x27)"><span>' + escapeHtml(t('rp.u.box')) + '</span></label>' +
+      '</div></div>';
+  }
+
+  /* Tick một hoặc cả hai ô. Luôn còn ít nhất một ô được chọn; tick cả hai = xem cả cái lẫn thùng. */
+  function rpUnitTick(which) {
+    const e = el('rpUEach'), b = el('rpUBox');
+    if (!e.checked && !b.checked) { (which === 'box' ? b : e).checked = true; }    // không cho bỏ ô cuối cùng
+    rpUnit(e.checked && b.checked ? 'both' : (b.checked ? 'box' : 'each'));
+  }
+
+  function rpUnit(u) {
+    RP.unit = u;
+    const e = el('rpUEach'), b = el('rpUBox');
+    if (e) e.checked = u !== 'box';
+    if (b) b.checked = u !== 'each';
+    // đổi cách hiển thị không cần gọi lại server: NXT đã có sẵn cả cái lẫn thùng
+    if (RP.tab === 'nxt') { if (RP.nxt) rpShowNxt(RP.nxt); }
+    else if (RP.tab === 'stock') rpRunStock();
+    else rpRunAlert();
+  }
+
+  /* ── khoảng ngày nhanh cho tab NXT ── */
+  const RP_QUICK = ['month', 'prev', 'week', 'quarter'];
+
+  function rpIso(d) {
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  /** Trả [từ, đến] (yyyy-mm-dd) theo giờ máy người dùng. */
+  function rpQuickRange(k) {
+    const n = new Date(), y = n.getFullYear(), m = n.getMonth();
+    if (k === 'prev') return [rpIso(new Date(y, m - 1, 1)), rpIso(new Date(y, m, 0))];
+    if (k === 'week') return [daysAgo(6), today()];                                   // 7 ngày gồm cả hôm nay
+    if (k === 'quarter') return [rpIso(new Date(y, Math.floor(m / 3) * 3, 1)), today()];
+    return [rpIso(new Date(y, m, 1)), today()];
+  }
+
+  function rpQuickHtml() {
+    return '<div class="rp-unit rp-quick"><span>' + escapeHtml(t('rp.quick')) + '</span><div class="rp-seg" id="rpQuickSeg" role="group">' +
+      RP_QUICK.map(function (k) {
+        return '<button type="button" data-k="' + k + '" onclick="rpQuick(\'' + k + '\')">' + escapeHtml(t('rp.p.' + k)) + '</button>';
+      }).join('') + '</div></div>';
+  }
+
+  /** Tô sáng nút khoảng nhanh khi khoảng ngày đang chọn trùng khớp. */
+  function rpMarkQuick() {
+    const f = el('rpFrom'), to = el('rpTo');
+    if (!f || !to) return;
+    document.querySelectorAll('#rpQuickSeg button').forEach(function (b) {
+      const r = rpQuickRange(b.getAttribute('data-k'));
+      b.classList.toggle('on', r[0] === f.value && r[1] === to.value);
+    });
+  }
+
+  function rpQuick(k) {
+    const r = rpQuickRange(k);
+    el('rpFrom').value = r[0]; el('rpTo').value = r[1];
+    rpMarkQuick();
+    clearTimeout(RP_T);
+    rpRunNxt();
+  }
+
+  /** Đổi từ/đến/nhóm: chờ 300ms (gõ ngày liên tục chỉ chạy 1 lần) rồi tự chạy lại. */
+  function rpNxtChanged() {
+    rpMarkQuick();
+    clearTimeout(RP_T);
+    RP_T = setTimeout(function () { if (RP.tab === 'nxt' && el('rpFrom')) rpRunNxt(); }, 300);
+  }
+
+  function rpTab(tab) {
+    RP.tab = tab;
+    el('rpTabs').innerHTML = ['nxt', 'stock', 'alert'].map(function (k) {
+      return '<button class="rp-tab' + (k === tab ? ' on' : '') + '" role="tab" onclick="rpTab(\'' + k + '\')">' + escapeHtml(t('rp.t.' + k)) + '</button>';
+    }).join('');
+
+    const cats = (CONFIG && CONFIG.categories) || [];
+    const catSel = function (id) {
+      return '<div class="field"><label>' + escapeHtml(t('rp.cat')) + '</label><select id="' + id + '"><option value="">' + escapeHtml(t('rp.allCats')) +
+        '</option>' + cats.map(function (c) { return '<option>' + escapeHtml(c) + '</option>'; }).join('') + '</select></div>';
+    };
+
+    clearTimeout(RP_T);
+    /* Bộ lọc chính trước, "Hiển thị theo Cái/Thùng" đặt sau cùng */
+    let f = '';
+    if (tab === 'nxt') {
+      f += '<div class="field"><label>' + escapeHtml(t('rp.from')) + '</label><input type="date" id="rpFrom"></div>' +
+           '<div class="field"><label>' + escapeHtml(t('rp.to')) + '</label><input type="date" id="rpTo"></div>' +
+           rpQuickHtml() + catSel('rpCat');
+    } else if (tab === 'stock') {
+      f += catSel('rpCat') +
+           '<div class="field"><label>' + escapeHtml(t('rp.loc')) + '</label><select id="rpLoc"><option value="">' + escapeHtml(t('rp.allLocs')) + '</option>' +
+           uniqueLocs().map(function (l) { return '<option>' + escapeHtml(l) + '</option>'; }).join('') + '</select></div>' +
+           '<label class="chk"><input type="checkbox" id="rpHide" checked> <span>' + escapeHtml(t('rp.hideZero')) + '</span></label>';
+    } else {
+      f += '<div class="field"><label>' + escapeHtml(t('rp.type')) + '</label><select id="rpType">' +
+           '<option value="out">' + escapeHtml(t('rp.a.out')) + '</option><option value="low">' + escapeHtml(t('rp.a.low')) + '</option>' +
+           '<option value="slow">' + escapeHtml(t('rp.a.slow')) + '</option></select></div>' +
+           '<div class="field"><label>' + escapeHtml(t('rp.days')) + '</label><input type="number" id="rpDays" min="1" value="90"></div>';
+    }
+    el('rpFilters').innerHTML = f + rpUnitHtml();
+
+    if (tab === 'nxt') {
+      const d = today();
+      el('rpFrom').value = d.slice(0, 8) + '01'; el('rpTo').value = d;
+      rpMarkQuick();
+      el('rpFilters').onchange = el('rpFilters').oninput = rpNxtChanged;               // NXT tự chạy lại khi đổi bộ lọc (như Tồn kho / Cảnh báo)
+      rpRunNxt();
+    } else {
+      el('rpFilters').onchange = el('rpFilters').oninput = tab === 'stock' ? rpRunStock : rpRunAlert;
+      (tab === 'stock' ? rpRunStock : rpRunAlert)();
+    }
+  }
+
+  /* ── cột theo đơn vị đã chọn ──
+     group = [{ each: 'khoá cột cái', box: 'khoá cột thùng', l: khóa nhãn }]
+     'both' -> hiện cả hai, nhãn gắn (cái)/(thùng). */
+  function rpUnitCols(defs) {
+    const out = [], both = RP.unit === 'both';
+    defs.forEach(function (d) {
+      if (RP.unit !== 'box' && d.each) out.push({ k: d.each, label: t(d.l) + (both ? ' (' + t('rp.suffix.each') + ')' : ''), n: true });
+      if (RP.unit !== 'each' && d.box) out.push({ k: d.box, label: t(d.l) + (both ? ' (' + t('rp.suffix.box') + ')' : (d.boxSuffix ? ' (' + t('rp.suffix.box') + ')' : '')), n: true });
+    });
+    return out;
+  }
+
+  /* foot = { count: số mã, sums: { khoá cột: tổng } } — tổng của TOÀN BỘ dòng (không chỉ trang đang xem); cột có c.sum mới được cộng. null = không có dòng tổng. */
+  function rpSet(cols, rows, summary, subtitle, foot) {
+    RP.cols = cols; RP.rows = rows; RP.summary = summary; RP.subtitle = subtitle || ''; RP.page = 0; RP.foot = foot || null;
+    rpRender();
+  }
+
+  /** Ô của dòng tổng, khớp 1-1 với RP.cols: [{ v: chuỗi đã định dạng, n: số? }] hoặc null. */
+  function rpFootCells() {
+    const f = RP.foot;
+    if (!f) return null;
+    return RP.cols.map(function (c) {
+      if (c.k === 'code') return { v: t('rp.total'), n: false };
+      if (c.k === 'name') return { v: t('rp.nItems', { n: num(f.count) }), n: false };
+      if (c.sum && f.sums[c.k] !== undefined) return { v: num(f.sums[c.k]), n: true };
+      return { v: '', n: !!c.n };
+    });
+  }
+
+  const RP_ID_COLS = [
+    { k: 'code', label: null, l: 'rp.c.code', mono: 1 }, { k: 'name', l: 'rp.c.name', wrap: 1 }, { k: 'cat', l: 'rp.c.cat' }, { k: 'unit', l: 'rp.c.unit' }
+  ];
+  function rpIdCols() { return RP_ID_COLS.map(function (c) { return Object.assign({}, c, { label: t(c.l) }); }); }
+
+  /* ── 1. Nhập – Xuất – Tồn ── */
+  function rpRunNxt() {
+    if (!el('rpFrom')) return;
+    const p = { from: el('rpFrom').value, to: el('rpTo').value, cat: el('rpCat').value };
+    if (!p.from || !p.to) return;                         // đang sửa ngày dở (ô trống): đợi đủ rồi mới chạy
+    if (p.from > p.to) { toast(t('rp.badRange'), 'err'); return; }
+    if (RP_BUSY) { RP_AGAIN = true; return; }            // bộ lọc đổi khi đang chạy: chạy lại sau khi xong, không bỏ qua im lặng
+    RP_BUSY = true;
+    setHtml('rpPager', '<span class="spin" aria-hidden="true"></span> <span>' + escapeHtml(t('rp.loading')) + '</span>');
+
+    /* Kết thúc một lần chạy. true = kết quả còn dùng được; false = bỏ (đã chạy lại vì bộ lọc đổi, hoặc đã sang tab khác). */
+    const fin = function () {
+      RP_BUSY = false;
+      if (RP_AGAIN) { RP_AGAIN = false; if (RP.tab === 'nxt' && el('rpFrom')) rpRunNxt(); return false; }
+      return RP.tab === 'nxt';
+    };
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!fin()) return;
+        if (!res || !res.ok) { setHtml('rpPager', ''); toast((res && res.message) || t('msg.error'), 'err'); return; }
+        RP.nxt = res;
+        rpShowNxt(res);
+      })
+      .withFailureHandler(function (e) {
+        if (!fin()) return;
+        setHtml('rpPager', ''); toast(t('msg.error') + ': ' + (e.message || e), 'err');
+      })
+      .reportNxt(p);
+  }
+
+  function rpShowNxt(res) {
+    RP.truncated = res.truncated ? res.rows.length : 0;
+    const cols = rpIdCols().concat(rpUnitCols([
+      { each: 'opening', box: 'boxOpening', l: 'rp.c.open' }, { each: 'imp', box: 'boxIn', l: 'rp.c.in' },
+      { each: 'exp', box: 'boxOut', l: 'rp.c.out' }, { each: 'closing', box: 'boxClosing', l: 'rp.c.close' }
+    ])).map(function (c) { return c.n ? Object.assign({}, c, { sum: true }) : c; });
+
+    // chỉ-thùng: bỏ dòng không có thùng nào để báo cáo gọn
+    const rows = res.rows.filter(function (r) {
+      return RP.unit !== 'box' || r.boxOpening || r.boxIn || r.boxOut || r.boxClosing;
+    }).map(function (r) { return Object.assign({}, r, { name: r.name + (r.variant ? ' · ' + r.variant : '') }); });
+
+    const T = res.totals, sum = [];
+    if (RP.unit !== 'box') sum.push([t('rp.c.open') + ' (' + t('rp.suffix.each') + ')', num(T.opening)], [t('rp.c.in') + ' (' + t('rp.suffix.each') + ')', num(T.imp)],
+                                     [t('rp.c.out') + ' (' + t('rp.suffix.each') + ')', num(T.exp)], [t('rp.c.close') + ' (' + t('rp.suffix.each') + ')', num(T.closing)]);
+    if (RP.unit !== 'each') sum.push([t('rp.c.open') + ' (' + t('rp.suffix.box') + ')', num(T.boxOpening)], [t('rp.c.in') + ' (' + t('rp.suffix.box') + ')', num(T.boxIn)],
+                                     [t('rp.c.out') + ' (' + t('rp.suffix.box') + ')', num(T.boxOut)], [t('rp.c.close') + ' (' + t('rp.suffix.box') + ')', num(T.boxClosing)]);
+
+    // dòng tổng lấy từ tổng toàn kỳ của server (cùng nguồn với ô tóm tắt, đúng cả khi bảng bị cắt bớt dòng)
+    const count = RP.unit === 'box' || !res.total ? rows.length : res.total;
+    rpSet(cols, rows, sum, t('rp.period', { a: fmt(res.from), b: fmt(res.to) }) + (RP.unit !== 'each' ? ' · ' + t('rp.boxNote') : ''),
+      { count: count, sums: T });
+  }
+
+  /* ── 2. Tồn kho (từ dữ liệu đã tải) ── */
+  function rpRunStock() {
+    const cat = el('rpCat').value, loc = el('rpLoc').value, hide = el('rpHide').checked;
+    const rows = STOCK.filter(function (s) {
+      if (cat && s.cat !== cat) return false;
+      if (loc && s.mainLoc !== loc) return false;
+      if (hide) return RP.unit === 'box' ? (s.boxLeft || 0) > 0 : s.stock > 0;
+      return true;
+    }).map(function (s) {
+      return { code: s.code, name: s.name + (s.variant ? ' · ' + s.variant : ''), cat: s.cat, unit: s.unit, stock: s.stock,
+               boxLeft: s.boxLeft || 0, bin: s.bin || '', loc: s.mainLoc === '—' ? '' : s.mainLoc };
+    });
+
+    let units = 0, boxes = 0;
+    rows.forEach(function (r) { units += Math.max(r.stock, 0); boxes += r.boxLeft; });
+    RP.truncated = 0;
+
+    const cols = rpIdCols().concat(rpUnitCols([{ each: 'stock', box: 'boxLeft', l: 'rp.c.stock', boxSuffix: true }]).map(function (c) {
+      return c.k === 'boxLeft' ? Object.assign({}, c, { label: t('rp.c.boxLeft'), sum: true }) : c;   // chỉ cộng số thùng; 'Tồn' lẫn nhiều đơn vị tính nên không cộng
+    })).concat([{ k: 'bin', label: t('rp.c.bin'), mono: 1 }, { k: 'loc', label: t('rp.c.loc') }]);
+
+    const sum = [[t('rp.s.items'), num(rows.length)]];
+    if (RP.unit !== 'box') sum.push([t('rp.s.units'), num(units)]);
+    if (RP.unit !== 'each') sum.push([t('rp.c.boxLeft'), num(boxes)]);
+    rpSet(cols, rows, sum, fmt(today()) + (RP.unit !== 'each' ? ' · ' + t('rp.boxNote') : ''), { count: rows.length, sums: { boxLeft: boxes } });
+  }
+
+  /* ── 3. Cảnh báo tồn ── */
+  function rpDaysBetween(iso) { return iso ? Math.floor((Date.parse(today()) - Date.parse(iso)) / 86400000) : 0; }
+
+  function rpRunAlert() {
+    const type = el('rpType').value, days = Math.max(1, Number(el('rpDays').value) || 90);
+    el('rpDays').parentNode.hidden = type !== 'slow';
+
+    const rows = STOCK.filter(function (s) {
+      if (type === 'out') return s.stock <= 0;
+      if (type === 'low') return s.stock > 0 && s.stock <= LOW;
+      return s.stock > 0 && rpDaysBetween(s.lastOut || s.last) >= days;              // chưa từng xuất: tính từ lần phát sinh gần nhất
+    }).map(function (s) {
+      return { code: s.code, name: s.name + (s.variant ? ' · ' + s.variant : ''), cat: s.cat, unit: s.unit, stock: s.stock, boxLeft: s.boxLeft || 0,
+               lastOut: s.lastOut ? fmt(s.lastOut) : t('rp.never'), idle: rpDaysBetween(s.lastOut || s.last), bin: s.bin || '' };
+    }).sort(function (a, b) { return type === 'slow' ? b.idle - a.idle : a.stock - b.stock; });
+
+    RP.truncated = 0;
+    let cols = rpIdCols().concat(rpUnitCols([{ each: 'stock', box: 'boxLeft', l: 'rp.c.stock', boxSuffix: true }]).map(function (c) {
+      return c.k === 'boxLeft' ? Object.assign({}, c, { label: t('rp.c.boxLeft') }) : c;
+    }));
+    if (type === 'slow') cols.push({ k: 'lastOut', label: t('rp.c.lastOut') }, { k: 'idle', label: t('rp.c.idle'), n: true });
+    cols.push({ k: 'bin', label: t('rp.c.bin'), mono: 1 });
+    rpSet(cols, rows, [[t('rp.s.items'), num(rows.length)]], fmt(today()));
+  }
+
+  /* ── vẽ bảng ── */
+  function rpRender() {
+    const s = el('rpSummary');
+    s.hidden = !RP.summary.length;
+    s.innerHTML = RP.summary.map(function (x) {
+      return '<div class="odoo-stat static"><span class="v">' + escapeHtml(x[1]) + '</span><span class="l">' + escapeHtml(x[0]) + '</span></div>';
+    }).join('');
+
+    el('rpActions').hidden = false;
+    setText('rpNote', RP.truncated ? t('rp.trunc', { n: num(RP.truncated) }) : RP.subtitle);
+
+    const table = el('rpTable');
+    table.innerHTML = '';
+    table.setAttribute('data-ts-external', '');      // báo cáo tự sắp xếp trên TOÀN BỘ dòng (xem bên dưới), TableSort chỉ giữ trạng thái và mũi tên
+    const thead = document.createElement('thead'), trh = document.createElement('tr');
+    RP.cols.forEach(function (c) { const th = document.createElement('th'); th.textContent = c.label; trh.appendChild(th); });
+    thead.appendChild(trh); table.appendChild(thead);
+
+    /* Cột người dùng chọn sắp xếp (TableSort): xếp TOÀN BỘ dòng rồi mới lấy trang đang xem, không chỉ 100 dòng đang hiện */
+    const ss = typeof tsSortState === 'function' ? tsSortState(table) : null;
+    let view = RP.rows;
+    if (ss && RP.cols[ss.col]) {
+      const sc = RP.cols[ss.col];
+      view = tsSortItems(RP.rows, function (r) { const v = r[sc.k]; return sc.n ? num(v) : (v == null || v === '' ? '—' : String(v)); }, ss.dir);
+    }
+
+    const from = RP.page * RP_PAGE_SIZE, to = Math.min(RP.rows.length, from + RP_PAGE_SIZE);
+    const tb = document.createElement('tbody');
+    let h = '';
+    for (let i = from; i < to; i++) {
+      h += '<tr>' + RP.cols.map(function (c) {
+        const v = view[i][c.k];
+        return '<td class="' + (c.n ? 'num' : c.wrap ? 'wrap' : '') + (c.mono ? ' mono' : '') + '">' + (c.n ? num(v) : escapeHtml(v == null || v === '' ? '—' : v)) + '</td>';
+      }).join('') + '</tr>';
+    }
+    tb.innerHTML = h;
+    if (!RP.rows.length) tb.appendChild(emptyRow(RP.cols.length, t('rp.empty')));
+    table.appendChild(tb);
+
+    /* dòng tổng: cộng toàn bộ dòng (kể cả các trang khác); chỉ hiện khi có dữ liệu */
+    const fc = RP.rows.length ? rpFootCells() : null;
+    if (fc) {
+      const tf = document.createElement('tfoot');
+      tf.innerHTML = '<tr>' + fc.map(function (x, i) {
+        const c = RP.cols[i];
+        // ô "Tổng" / "N mã" là tiêu đề của dòng tổng: trên điện thoại hiện như tiêu đề thẻ, không gắn nhãn cột (ft-title)
+        const title = c.k === 'code' || c.k === 'name';
+        return '<td class="' + (x.n ? 'num' : c.wrap ? 'wrap' : '') + (c.mono ? ' mono' : '') + (title ? ' ft-title' : '') + '">' + escapeHtml(x.v) + '</td>';
+      }).join('') + '</tr>';
+      table.appendChild(tf);
+    }
+
+    const pages = Math.ceil(RP.rows.length / RP_PAGE_SIZE);
+    el('rpPager').innerHTML = pages > 1
+      ? '<button class="btn ghost sm" ' + (RP.page ? '' : 'disabled') + ' onclick="rpGo(-1)">‹</button><span>' +
+        escapeHtml(t('rp.page', { a: from + 1, b: to, n: RP.rows.length })) + '</span><button class="btn ghost sm" ' +
+        (RP.page < pages - 1 ? '' : 'disabled') + ' onclick="rpGo(1)">›</button>' : '';
+  }
+
+  function rpGo(d) { RP.page += d; rpRender(); }
+
+  /* Đổi cột/chiều sắp xếp: vẽ lại từ trang đầu (thứ tự mới áp cho toàn bộ dòng, không chỉ trang đang xem) */
+  document.addEventListener('ts-sorted', function (ev) {
+    if (ev.target && ev.target.id === 'rpTable') { RP.page = 0; rpRender(); }
+  });
+
+  /* ── xuất / in ── */
+  function rpFileName() { return t('rp.t.' + RP.tab).replace(/[^\wÀ-ỹ]+/g, '-') + '-' + t('rp.u.' + RP.unit) + '-' + today(); }
+
+  function rpCsv() {
+    const lines = [RP.cols.map(function (c) { return csvCell(c.label); }).join(',')];
+    RP.rows.forEach(function (r) { lines.push(RP.cols.map(function (c) { return csvCell(r[c.k]); }).join(',')); });
+    downloadCsv(rpFileName() + '.csv', lines);
+  }
+
+  /* ── in A4 ──
+     Khổ giấy tự chọn theo số cột: ít cột in DỌC, từ RP_LANDSCAPE_FROM cột trở lên in NGANG.
+     Bảng luôn vừa bề ngang giấy (chữ nhỏ dần khi nhiều cột, ô tự xuống dòng), tiêu đề cột lặp lại ở mỗi trang. */
+  const RP_LANDSCAPE_FROM = 9;
+
+  function rpPaper(nCols) {
+    const landscape = nCols >= RP_LANDSCAPE_FROM;
+    const font = landscape ? (nCols > 12 ? 8.5 : 9.5) : (nCols > 7 ? 10 : 11);
+    return { landscape: landscape, font: font };
+  }
+
+  /**
+   * HTML của bản in: logo Grab · tên báo cáo · kỳ / bộ lọc · tóm tắt · bảng. Hàm thuần (không đụng DOM) để kiểm thử.
+   * o = { title, subtitle, by (người xuất), at (thời điểm), logo (URL), summary:[[nhãn, giá trị]], cols:[{k, label, n}], rows:[{...}],
+   *       foot (không bắt buộc): [{ v: chuỗi, n: số? }] khớp 1-1 với cols — dòng tổng, in ở cuối bảng }
+   */
+  function rpPrintDoc(o) {
+    const paper = rpPaper(o.cols.length);
+    const th = o.cols.map(function (c) { return '<th class="' + (c.n ? 'n' : '') + '">' + escapeHtml(c.label) + '</th>'; }).join('');
+    const body = o.rows.map(function (r) {
+      return '<tr>' + o.cols.map(function (c) {
+        const v = r[c.k];
+        return '<td class="' + (c.n ? 'n' : '') + '">' + (c.n ? num(v) : escapeHtml(v == null ? '' : v)) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    const tfoot = o.foot
+      ? '<tfoot><tr>' + o.foot.map(function (x) { return '<td class="' + (x.n ? 'n' : '') + '">' + escapeHtml(x.v) + '</td>'; }).join('') + '</tr></tfoot>'
+      : '';
+    const sum = o.summary.map(function (x) { return '<b>' + escapeHtml(x[0]) + ':</b> ' + escapeHtml(x[1]); }).join(' &nbsp;·&nbsp; ');
+
+    // Màu bản in A4 (cửa sổ in riêng, không thấy token của trang)
+    const PC = { ink: '#111', brand: '#00b14f', sub: '#555', meta: '#444', line: '#999', th: '#e8f5ee', foot: '#f3f3f3' };
+    return '<!doctype html><meta charset="utf-8"><title>' + escapeHtml(o.title) + '</title>' +
+      '<style>' +
+        '@page{size:A4 ' + (paper.landscape ? 'landscape' : 'portrait') + ';margin:10mm}' +
+        '*{box-sizing:border-box}' +
+        'html,body{margin:0;padding:0}' +
+        'body{font:' + paper.font + 'px/1.35 Arial,Helvetica,sans-serif;color:' + PC.ink + ';-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+        '.hd{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid ' + PC.brand + ';padding-bottom:8px;margin-bottom:8px}' +
+        '.hd img{height:12mm;width:auto;display:block}' +
+        '.hd .r{text-align:right;color:' + PC.sub + ';font-size:' + (paper.font - 1) + 'px}' +
+        'h2{margin:0 0 4px;font-size:' + (paper.font + 5) + 'px}' +
+        '.meta{margin:0 0 4px;color:' + PC.meta + '}' +
+        'table{width:100%;border-collapse:collapse;margin-top:8px}' +
+        'th,td{border:1px solid ' + PC.line + ';padding:2px 4px;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}' +
+        'th{background:' + PC.th + ';font-weight:700}' +
+        'th.n,td.n{text-align:right;white-space:nowrap}' +
+        'thead{display:table-header-group}tr{page-break-inside:avoid;break-inside:avoid}' +
+        'tfoot{display:table-row-group}tfoot td{font-weight:700;background:' + PC.foot + ';border-top:2px solid ' + PC.sub + '}' +
+      '</style>' +
+      '<div class="hd"><div>' + (o.logo ? '<img id="rpLogo" alt="Grab" src="' + escapeHtml(o.logo) + '">' : '') + '</div>' +
+        '<div class="r">' + escapeHtml(o.by) + '<br>' + escapeHtml(o.at) + '</div></div>' +
+      '<h2>' + escapeHtml(o.title) + '</h2>' +
+      '<div class="meta">' + escapeHtml(o.subtitle) + '</div>' +
+      '<div class="meta">' + sum + '</div>' +
+      '<table><thead><tr>' + th + '</tr></thead><tbody>' + body + '</tbody>' + tfoot + '</table>';
+  }
+
+  function rpPrint() {
+    const logoEl = document.querySelector('.hd-logo');
+    const doc = rpPrintDoc({
+      title: t('rp.t.' + RP.tab) + ' — ' + t('rp.u.' + RP.unit),
+      subtitle: RP.subtitle, by: SESSION ? SESSION.username : '', at: new Date().toLocaleString(LANG === 'en' ? 'en-GB' : 'vi-VN'),
+      logo: logoEl ? logoEl.src : '', summary: RP.summary, cols: RP.cols, rows: RP.rows,
+      foot: RP.rows.length ? rpFootCells() : null
+    });
+
+    const fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(fr);
+    fr.contentDocument.open(); fr.contentDocument.write(doc); fr.contentDocument.close();
+
+    /* chờ logo tải xong rồi mới in (không thì trang in ra thiếu logo); quá 3 giây vẫn in */
+    let printed = false;
+    const go = function () {
+      if (printed) return; printed = true;
+      fr.contentWindow.focus(); fr.contentWindow.print();
+      setTimeout(function () { fr.remove(); }, 1500);
+    };
+    const img = fr.contentDocument.getElementById('rpLogo');
+    if (img && !img.complete) { img.onload = img.onerror = go; setTimeout(go, 3000); } else setTimeout(go, 250);
+  }
+
+  rpBuild();       // dựng sẵn để goto('report') tìm thấy #page-report
+</script>

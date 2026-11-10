@@ -1,0 +1,76 @@
+<!-- Trang Quản lý: công tắc "Nhận email khi có yêu cầu mới" của CHÍNH admin đang đăng nhập. Gắn vào <div id="mailPrefMount">. -->
+<style>
+  .mp-card{ margin:0 0 16px; padding:16px 20px; display:flex; align-items:flex-start; gap:12px; }
+  .mp-card label{ display:flex; align-items:flex-start; gap:12px; cursor:pointer; margin:0; }
+  .mp-card input[type=checkbox]{ width:18px; height:18px; margin-top:2px; accent-color:var(--g-600); flex:0 0 auto; }
+  .mp-title{ font-weight:700; }
+  .mp-desc{ color:var(--n-500); font-size:var(--fs-sm); margin-top:2px; }
+  .mp-state{ margin-left:auto; font-size:var(--fs-sm); white-space:nowrap; align-self:center; }
+</style>
+
+<script>
+  Object.assign(I18N.vi, {
+    'mp.title':'Nhận email khi có yêu cầu mới hoặc người đăng ký mới',
+    'mp.desc':'Khi staff gửi yêu cầu nhập / xuất mới, hoặc có người mới đăng ký tài khoản, hệ thống gửi email tới {email}. Mặc định tắt; chỉ tài khoản này, không ảnh hưởng admin khác.',
+    'mp.on':'Đang bật', 'mp.off':'Đang tắt', 'mp.loading':'Đang tải…',
+    'mp.mailOff':'Email của ứng dụng đang bị tắt ở cấu hình (MAIL_ENABLED = false) nên sẽ chưa gửi được.'
+  });
+  Object.assign(I18N.en, {
+    'mp.title':'Email me when a new request or sign-up arrives',
+    'mp.desc':'When staff submit a new receive / issue request, or someone registers a new account, an email is sent to {email}. Off by default; applies to this account only.',
+    'mp.on':'On', 'mp.off':'Off', 'mp.loading':'Loading…',
+    'mp.mailOff':'App email is switched off in the configuration (MAIL_ENABLED = false), so nothing can be sent yet.'
+  });
+
+  const MP = { loaded: false, busy: false, on: false, email: '', mailEnabled: true };
+
+  function mpRender() {
+    const m = el('mailPrefMount');
+    if (!m || !IS_ADMIN) return;
+
+    m.innerHTML =
+      '<div class="card mp-card"><label>' +
+        '<input type="checkbox" id="mpCb"' + (MP.on ? ' checked' : '') + (MP.loaded && !MP.busy ? '' : ' disabled') + ' onchange="mpToggle(this)">' +
+        '<span><span class="mp-title">' + escapeHtml(t('mp.title')) + '</span>' +
+        '<div class="mp-desc">' + escapeHtml(t('mp.desc', { email: MP.email || '…' })) + '</div>' +
+        (MP.loaded && !MP.mailEnabled ? '<div class="mp-desc" style="color:var(--red)">' + escapeHtml(t('mp.mailOff')) + '</div>' : '') +
+        '</span></label>' +
+        '<span class="mp-state badge ' + (MP.on ? 'ok' : 'neutral') + '">' +
+          escapeHtml(!MP.loaded ? t('mp.loading') : (MP.on ? t('mp.on') : t('mp.off'))) + '</span></div>';
+  }
+
+  function mpOnEnter() {
+    if (!IS_ADMIN || !el('mailPrefMount')) return;
+    mpRender();
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res && res.ok) { MP.loaded = true; MP.on = !!res.on; MP.email = res.email; MP.mailEnabled = res.mailEnabled !== false; }
+        else toast((res && res.message) || t('msg.error'), 'err');
+        mpRender();
+      })
+      .withFailureHandler(function (e) { toast(t('msg.error') + ': ' + (e.message || e), 'err'); mpRender(); })
+      .getMyMailPref();
+  }
+
+  function mpToggle(cb) {
+    if (MP.busy) return;
+    const want = cb.checked;
+    MP.busy = true; mpRender();
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        MP.busy = false;
+        if (res && res.ok) { MP.on = !!res.on; toast(res.message); }
+        else toast((res && res.message) || t('msg.error'), 'err');      // lỗi: giữ giá trị cũ, không giả vờ đã lưu
+        mpRender();
+      })
+      .withFailureHandler(function (e) { MP.busy = false; toast(t('msg.error') + ': ' + (e.message || e), 'err'); mpRender(); })
+      .setMyMailPref(want);
+  }
+
+  /* đổi ngôn ngữ phải vẽ lại thẻ */
+  (function () {
+    const orig = applyI18n;
+    applyI18n = function () { orig(); mpRender(); };
+  })();
+</script>

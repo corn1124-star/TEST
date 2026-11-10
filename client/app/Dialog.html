@@ -1,0 +1,154 @@
+<style>
+  /* Hộp thoại xác nhận nằm trên mọi modal khác (.odoo-modal 9000, .guide-modal 9500); toast (9700) vẫn nằm trên hộp thoại. */
+  #uiDlg{ z-index:9600; }
+  #uiDlg .guide-card{ max-height:calc(100vh - 32px); max-height:calc(100dvh - 32px); overflow-y:auto; }
+  #uiDlg .guide-card h2{ overflow-wrap:anywhere; }
+  #uiDlg .guide-card p{ overflow-wrap:anywhere; }
+  @media (max-width:480px){
+    #uiDlg .guide-actions{ flex-direction:column-reverse; }
+    #uiDlg .guide-actions .btn{ width:100%; }
+  }
+</style>
+
+<script>
+  /* ============================================================
+     HỘP THOẠI XÁC NHẬN dùng chung (thay prompt/confirm của trình duyệt)
+     uiDialog(opts, function (reason) { ... })     // reason = chuỗi đã trim ('' nếu không có ô lý do)
+     opts:
+       title        tiêu đề (chữ thường, tự escape; là nhãn aria cho hộp thoại)
+       body         nội dung chữ thường (tự escape; \n xuống dòng)
+       html         thay cho body: HTML ĐÃ ESCAPE bởi bên gọi (không escape lần nữa)
+       reason       false | 'optional' | 'required'   ('required': nút xác nhận chỉ bật khi đã nhập >= 3 ký tự)
+       multiline    true = ô lý do nhiều dòng (Enter xuống dòng, Ctrl/Cmd+Enter xác nhận); mặc định ô một dòng (Enter xác nhận)
+       okLabel      chữ nút xác nhận (mặc định "OK")
+       cancelLabel  chữ nút huỷ (mặc định t('dlg.cancel'))
+       danger       true = nút xác nhận đỏ; không có ô lý do thì focus ban đầu ở nút Huỷ
+     · role="dialog" aria-modal, nhãn = tiêu đề, giữ Tab trong hộp thoại, trả focus về chỗ cũ khi đóng.
+     · Esc hoặc bấm nền = huỷ (callback không chạy). Esc/Enter không lọt xuống modal bên dưới.
+     · Gọi liên tiếp (hoặc từ trong callback/modal khác) an toàn: hộp thoại cũ được đóng sạch trước khi mở cái mới.
+     · Trả về hàm đóng hộp thoại (không gọi callback).
+     ============================================================ */
+
+  Object.assign(I18N.vi, {
+    'dlg.cancel':'Huỷ', 'dlg.ok':'OK', 'dlg.reason':'Lý do', 'dlg.reasonReq':'Nhập lý do (ít nhất 3 ký tự)', 'dlg.reasonOpt':'Lý do (không bắt buộc)',
+    'del.btn':'Xóa', 'del.ok':'Xóa', 'del.restore':'Khôi phục', 'del.restoreOk':'Khôi phục',
+    'del.txTitle':'Xóa giao dịch',
+    'del.txBody':'{info}\n\nGiao dịch sẽ chuyển vào mục "Đã xóa" (Quản lý) và khôi phục được. Hệ thống chặn nếu việc xóa làm tồn kho âm hoặc thùng của lần nhập đã bị lấy hàng.',
+    'del.reqTitle':'Xóa yêu cầu', 'del.reqBody':'Xóa hẳn yêu cầu {id}? Không khôi phục được; nội dung được ghi vào nhật ký.',
+    'del.stkTitle':'Xóa đợt kiểm kê', 'del.stkBody':'Xóa hẳn đợt "{name}" cùng mọi dòng đếm? Không khôi phục được. Đợt đã ghi điều chỉnh vào sổ cái sẽ bị chặn.',
+    'del.bkTitle':'Xóa bản sao lưu', 'del.bkBody':'Chuyển "{name}" vào thùng rác Drive?',
+    'del.restoreTitle':'Khôi phục giao dịch', 'del.restoreBody':'Ghi lại giao dịch {info} như một giao dịch mới?'
+  });
+  Object.assign(I18N.en, {
+    'dlg.cancel':'Cancel', 'dlg.ok':'OK', 'dlg.reason':'Reason', 'dlg.reasonReq':'Enter a reason (at least 3 characters)', 'dlg.reasonOpt':'Reason (optional)',
+    'del.btn':'Delete', 'del.ok':'Delete', 'del.restore':'Restore', 'del.restoreOk':'Restore',
+    'del.txTitle':'Delete transaction',
+    'del.txBody':'{info}\n\nThe transaction moves to "Deleted" (Manage) and can be restored. Blocked if deleting would make stock negative or the receipt\'s boxes were already issued.',
+    'del.reqTitle':'Delete request', 'del.reqBody':'Permanently delete request {id}? It cannot be restored; its content is written to the audit log.',
+    'del.stkTitle':'Delete stocktake', 'del.stkBody':'Permanently delete "{name}" and all its count lines? Cannot be restored. A count that posted adjustments to the ledger is blocked.',
+    'del.bkTitle':'Delete backup', 'del.bkBody':'Move "{name}" to the Drive trash?',
+    'del.restoreTitle':'Restore transaction', 'del.restoreBody':'Post {info} again as a new transaction?'
+  });
+
+  /* Ngăn xếp các bẫy focus đang bật (mở sau nằm cuối). Chỉ bẫy trên cùng ĐANG HIỆN mới xử lý Tab:
+     hộp thoại mở chồng lên modal khác thì Tab quay vòng trong chính nó, và modal đã ẩn/bị gỡ không còn chặn Tab. */
+  const TRAP_STACK = [];
+  function trapVisible_(m) { return !!(m && m.isConnected && !m.hidden && m.getClientRects().length); }
+
+  /** Giữ Tab trong hộp thoại và trả focus về chỗ cũ khi đóng. Trả về hàm gỡ. */
+  function trapFocus(m) {
+    const prev = document.activeElement;
+    const token = { m: m };
+    TRAP_STACK.push(token);
+    function onTab(ev) {
+      if (ev.key !== 'Tab') return;
+      if (!trapVisible_(m)) return;                                   // modal đã ẩn / bị gỡ: bỏ qua
+      for (let i = TRAP_STACK.length - 1; i >= 0; i--) {              // bẫy trên cùng đang hiện mới được xử lý
+        if (trapVisible_(TRAP_STACK[i].m)) { if (TRAP_STACK[i] !== token) return; break; }
+      }
+      const f = m.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (!f.length) return;
+      const a = f[0], z = f[f.length - 1];
+      if (!m.contains(document.activeElement) || (ev.shiftKey && document.activeElement === a)) { ev.preventDefault(); (ev.shiftKey ? z : a).focus(); }
+      else if (!ev.shiftKey && document.activeElement === z) { ev.preventDefault(); a.focus(); }
+    }
+    document.addEventListener('keydown', onTab, true);
+    let released = false;
+    return function () {
+      if (released) return;
+      released = true;
+      document.removeEventListener('keydown', onTab, true);
+      const k = TRAP_STACK.indexOf(token);
+      if (k !== -1) TRAP_STACK.splice(k, 1);
+      if (prev && prev.focus && document.contains(prev)) prev.focus();
+    };
+  }
+
+  let UI_DLG_CLOSE = null;   // hàm đóng hộp thoại đang mở (không gọi callback)
+  let UI_DLG_SEQ = 0;
+
+  function uiDialog(o, cb) {
+    o = o || {};
+    // Đang có hộp thoại khác (gọi liên tiếp): đóng đúng cách để gỡ listener và trả focus, rồi mở cái mới.
+    if (UI_DLG_CLOSE) UI_DLG_CLOSE();
+    const old = document.getElementById('uiDlg');
+    if (old) old.remove();
+
+    const seq = ++UI_DLG_SEQ;
+    const needReason = o.reason === 'required';
+    const m = document.createElement('div');
+    m.id = 'uiDlg'; m.className = 'guide-modal';
+    m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    m.setAttribute('aria-labelledby', 'uiDlgTitle'); m.setAttribute('aria-describedby', 'uiDlgBody');
+
+    const bodyHtml = o.html != null ? String(o.html) : escapeHtml(o.body || '');
+    m.innerHTML =
+      '<div class="guide-card"><h2 id="uiDlgTitle">' + escapeHtml(o.title || '') + '</h2>' +
+      '<p id="uiDlgBody" style="white-space:pre-line">' + bodyHtml + '</p>' +
+      (o.reason ? '<div class="field" style="margin:8px 0 4px"><label for="uiDlgWhy">' + escapeHtml(t(needReason ? 'dlg.reasonReq' : 'dlg.reasonOpt')) + '</label>' +
+        (o.multiline
+          ? '<textarea id="uiDlgWhy" rows="3" maxlength="300" style="width:100%;padding:10px 12px;min-height:84px"></textarea>'
+          : '<input id="uiDlgWhy" type="text" maxlength="300" autocomplete="off" style="width:100%">') +
+        '</div>' : '') +
+      '<div class="guide-actions" style="margin-top:14px"><button type="button" class="btn ghost" id="uiDlgNo">' + escapeHtml(o.cancelLabel || t('dlg.cancel')) + '</button>' +
+      '<button type="button" class="btn' + (o.danger ? ' danger-solid' : '') + '" id="uiDlgOk"' + (needReason ? ' disabled' : '') + '>' + escapeHtml(o.okLabel || t('dlg.ok')) + '</button></div></div>';
+    document.body.appendChild(m);
+
+    const why = m.querySelector('#uiDlgWhy'), ok = m.querySelector('#uiDlgOk'), no = m.querySelector('#uiDlgNo');
+    const release = trapFocus(m);
+    let done = false;
+    function close() {
+      if (done) return;
+      done = true;
+      document.removeEventListener('keydown', onKey, true);
+      if (UI_DLG_SEQ === seq) UI_DLG_CLOSE = null;
+      release(); m.remove();
+    }
+    UI_DLG_CLOSE = close;
+    function submit() {
+      if (done || ok.disabled) return;
+      const r = why ? why.value.trim() : '';
+      close();
+      if (typeof cb === 'function') cb(r);
+    }
+    // Capture + stopPropagation: Esc/Enter chỉ tác động hộp thoại này, không đóng luôn modal nằm bên dưới.
+    function onKey(ev) {
+      if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); }
+      else if (ev.key === 'Enter' && why && ev.target === why && (why.tagName !== 'TEXTAREA' || ev.ctrlKey || ev.metaKey)) {
+        ev.preventDefault(); ev.stopPropagation(); submit();   // ô một dòng: Enter xác nhận; ô nhiều dòng: Ctrl/Cmd+Enter
+      }
+    }
+    document.addEventListener('keydown', onKey, true);
+
+    let downOnBg = false;
+    m.addEventListener('mousedown', function (ev) { downOnBg = ev.target === m; });
+    m.addEventListener('click', function (ev) { if (ev.target === m && downOnBg) close(); });
+    no.onclick = close;
+    ok.onclick = submit;
+    if (why) {
+      why.addEventListener('input', function () { if (needReason) ok.disabled = why.value.trim().length < 3; });
+      why.focus();
+    } else (o.danger ? no : ok).focus();   // thao tác nguy hiểm không có ô lý do: focus vào Huỷ để Enter lỡ tay không xóa
+    return close;
+  }
+</script>

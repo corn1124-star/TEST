@@ -1,0 +1,79 @@
+<style>
+  /* ══ THÔNG BÁO NỔI (toast) — giữa màn hình, đặc màu, luôn thấy dù đang cuộn ở đâu ══
+     Thành công = xanh Grab đặc, lỗi = đỏ đặc, thông tin = mực. Biểu tượng + chữ to; bấm × để đóng. */
+  .toast-host{
+    position:fixed; left:50%; top:calc(var(--hd-h) + 16px); transform:translateX(-50%); z-index:9700;
+    display:flex; flex-direction:column; gap:8px; align-items:center;
+    width:min(440px, calc(100% - 32px)); pointer-events:none;
+  }
+  .toast{
+    pointer-events:auto; display:flex; gap:12px; align-items:center; width:100%;
+    background:var(--n-900); color:var(--n-000); padding:12px 8px 12px 16px; border-radius:var(--r-lg);
+    border:0; font-size:var(--fs-md); font-weight:500; line-height:1.4;
+    box-shadow:var(--sh-lg); animation:toastIn .22s cubic-bezier(.16, 1, .3, 1);
+  }
+  .toast.ok{ background:var(--color-board); }
+  .toast.err{ background:var(--st-bad); }
+  .toast .ico-wrap{ flex:0 0 20px; width:20px; height:20px; display:grid; place-items:center; }
+  .toast .ico-wrap .ico{ width:20px; height:20px; stroke-width:2.4; }
+  .toast .tx{ flex:1; word-break:break-word; }
+  .toast button{
+    flex:0 0 auto; background:none; border:0; color:color-mix(in srgb, var(--n-000) 80%, transparent); cursor:pointer;
+    font-size:20px; line-height:1; padding:4px 8px; min-height:0; border-radius:var(--r-sm);
+  }
+  .toast button:hover{ color:var(--n-000); background:color-mix(in srgb, var(--n-000) 16%, transparent); }
+  @keyframes toastIn{ from{ opacity:0; transform:scale(.94) translateY(-8px); } to{ opacity:1; transform:none; } }
+  /* điện thoại: nhỏ vừa đủ đọc, chỉ rộng bằng nội dung, nằm giữa ngay dưới thanh trên cùng */
+  @media (max-width:860px){
+    .toast-host{ top:calc(var(--hd-h) + 8px); width:calc(100% - 24px); gap:4px; }
+    .toast{ width:fit-content; max-width:100%; gap:8px; padding:4px 4px 4px 12px; border-radius:var(--r-md); font-size:var(--fs-sm); line-height:1.35; box-shadow:var(--sh-md); }
+    .toast .ico-wrap{ flex-basis:16px; width:16px; height:16px; }
+    .toast .ico-wrap .ico{ width:16px; height:16px; }
+    .toast button{ font-size:18px; padding:0 8px; }
+  }
+  @media (pointer:coarse){ .toast button{ min-width:44px; min-height:44px; margin:-8px 0; } }
+  @media (prefers-reduced-motion: reduce){ .toast{ animation:none; } }
+</style>
+
+<script>
+  /**
+   * Thông báo nổi. kind: 'ok' (mặc định) | 'err' | 'info'.
+   * Hiện giữa màn hình, đặc màu, có biểu tượng. Lỗi ở lâu hơn (9s, tối thiểu 6s) vì cần đọc; mọi thông báo bấm × để đóng.
+   * Tối đa 4 thông báo cùng lúc. Vùng chứa role="status" aria-live="polite"; thông báo lỗi có role="alert" để đọc ngay.
+   */
+  function toast(msg, kind, ms) {
+    let host = document.getElementById('toastHost');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'toastHost'; host.className = 'toast-host';
+      host.setAttribute('role', 'status'); host.setAttribute('aria-live', 'polite');
+      document.body.appendChild(host);
+    }
+
+    while (host.children.length >= 4) host.removeChild(host.firstChild);
+
+    const k = kind === 'err' || kind === 'info' ? kind : 'ok';
+    const el = document.createElement('div');
+    el.className = 'toast ' + k;
+    if (k === 'err') el.setAttribute('role', 'alert');
+
+    const ic = document.createElement('span');
+    ic.className = 'ico-wrap'; ic.setAttribute('aria-hidden', 'true');
+    ic.innerHTML = '<svg aria-hidden="true" class="ico"><use href="#i-' + (k === 'ok' ? 'check' : 'alert') + '"></use></svg>';
+
+    const tx = document.createElement('span');
+    tx.className = 'tx'; tx.textContent = String(msg == null ? '' : msg);
+
+    const x = document.createElement('button');
+    x.type = 'button'; x.setAttribute('aria-label', (typeof t === 'function' ? t('item.close') : '') || 'Close'); x.textContent = '×';
+
+    let timer = 0;
+    function close() { clearTimeout(timer); if (el.parentNode) el.parentNode.removeChild(el); }
+    x.onclick = close;
+
+    el.appendChild(ic); el.appendChild(tx); el.appendChild(x);
+    host.appendChild(el);
+    timer = setTimeout(close, k === 'err' ? (ms ? Math.max(ms, 6000) : 9000) : (ms || 4000));
+    return close;
+  }
+</script>

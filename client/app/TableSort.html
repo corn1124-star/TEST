@@ -1,0 +1,279 @@
+<!-- Sắp xếp theo cột cho MỌI bảng dữ liệu: bấm tiêu đề cột (tăng/giảm). Trên điện thoại, nơi bảng thành thẻ và không có tiêu đề, có ô chọn cột ở trên bảng.
+     Không bảng nào phải sửa: script đọc chữ trong ô và nhận ra số, ngày, chữ. Bảng không muốn sắp xếp thì thêm data-no-sort vào <table>;
+     ô muốn sắp theo giá trị khác chữ hiển thị thì thêm data-sort="..." vào <td>. -->
+<style>
+  .th-sort{
+    display:inline-flex; align-items:center; gap:4px; padding:0; border:0; background:none;
+    font:inherit; color:inherit; text-transform:inherit; letter-spacing:inherit; text-align:inherit; cursor:pointer;
+  }
+  .th-sort:hover, th[aria-sort="ascending"] .th-sort, th[aria-sort="descending"] .th-sort{ color:var(--n-800); }
+  .th-sort:focus-visible{ outline:2px solid var(--n-700); outline-offset:2px; border-radius:2px; }
+  .th-sort .ico{ width:12px; height:12px; opacity:0; transition:opacity .12s ease-out; }
+  .th-sort:hover .ico, th[aria-sort="ascending"] .ico, th[aria-sort="descending"] .ico{ opacity:1; }
+  th[aria-sort="ascending"] .th-sort .ico{ transform:rotate(180deg); }
+
+  /* ô chọn cột: chỉ hiện khi bảng thành thẻ (không còn tiêu đề để bấm) */
+  .ts-bar{ display:none; gap:8px; align-items:center; margin:0 0 8px; }
+  .ts-bar select{ flex:1; min-width:0; }
+  @media (max-width:639.98px){ .ts-bar:not([hidden]){ display:flex; } }
+</style>
+
+<script>
+  (function () {
+    Object.assign(I18N.vi, { 'ts.sortBy':'Sắp xếp theo…', 'ts.asc':'Tăng dần (bấm để đổi sang giảm dần)', 'ts.desc':'Giảm dần (bấm để đổi sang tăng dần)' });
+    Object.assign(I18N.en, { 'ts.sortBy':'Sort by…', 'ts.asc':'Ascending (press to switch to descending)', 'ts.desc':'Descending (press to switch to ascending)' });
+
+    var STATE = {};            // khoá bảng -> { sig: chữ các tiêu đề, col, dir }; dựng lại bảng thì sắp xếp lại theo đây
+    var queued = false, mo = null;
+
+    function lang() { return (typeof LANG !== 'undefined' && LANG === 'en') ? 'en' : 'vi'; }
+    function txt(el) { return (el.textContent || '').replace(/\s+/g, ' ').trim(); }
+
+    /* ── bảng nào được sắp xếp ── */
+    function headRow(table) {
+      var h = table.tHead;
+      return h && h.rows.length ? h.rows[h.rows.length - 1] : null;
+    }
+    function eligible(table) {
+      return !table.hasAttribute('data-no-sort') && !table.closest('td') && !!headRow(table);
+    }
+    /* bảng thành thẻ ở điện thoại (khớp luật trong Theme.html: #stockTable và #stkTable giữ nguyên bảng) */
+    function isCards(table) {
+      return !!table.closest('.table-wrap.rt') && table.id !== 'stockTable' && table.id !== 'stkTable' && !table.hasAttribute('data-no-cards');
+    }
+    function keyOf(table) {
+      if (table.id) return table.id;
+      var page = table.closest('.page, [id]');
+      var scope = page || document;
+      return (page && page.id || '') + '#' + Array.prototype.indexOf.call(scope.querySelectorAll('table'), table);
+    }
+
+    /* các cột bấm được: [{ th, col }] — col là chỉ số cột thật (tính cả colSpan) */
+    function columns(hr) {
+      var out = [], col = 0;
+      for (var i = 0; i < hr.cells.length; i++) {
+        var th = hr.cells[i];
+        if ((th.colSpan || 1) === 1 && txt(th) && !th.classList.contains('no-sort') && !th.querySelector('input,select,textarea,a')
+            && (!th.querySelector('button') || th.querySelector('.th-sort'))) out.push({ th: th, col: col });
+        col += th.colSpan || 1;
+      }
+      return out;
+    }
+    function sigOf(hr) {
+      var s = [];
+      for (var i = 0; i < hr.cells.length; i++) s.push(txt(hr.cells[i]));
+      return s.join('\u0001');
+    }
+
+    function enhance(table) {
+      var hr = headRow(table);
+      columns(hr).forEach(function (c) {
+        c.th.setAttribute('data-ts-col', c.col);
+        if (c.th.querySelector('.th-sort')) return;
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'th-sort';
+        while (c.th.firstChild) b.appendChild(c.th.firstChild);
+        b.insertAdjacentHTML('beforeend', '<svg class="ico" aria-hidden="true"><use href="#i-chevron-down"></use></svg>');
+        c.th.appendChild(b);
+      });
+    }
+
+    /* ── dòng: mỗi dòng dữ liệu kèm các dòng chi tiết ngay dưới nó (bx-row, dòng một ô colSpan) ── */
+    function groupsOf(tbody) {
+      var groups = [], loose = false;
+      for (var i = 0; i < tbody.rows.length; i++) {
+        var r = tbody.rows[i];
+        var detail = r.classList.contains('bx-row') || (r.cells.length === 1 && r.cells[0].colSpan > 1);
+        if (detail) { if (groups.length) groups[groups.length - 1].rows.push(r); else loose = true; }
+        else groups.push({ rows: [r] });
+      }
+      return loose ? null : groups;      // dòng "trống" đứng đầu: không đụng vào
+    }
+
+    /* ── đọc giá trị ô ── */
+    function parseVal(v) {
+      if (v === '' || v === '—' || v === '-' || v === '–') return null;
+      var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\D+(\d{1,2}):(\d{2}))?/.exec(v);
+      if (m) return { k: 'n', n: Date.UTC(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0)) };
+      m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/.exec(v);
+      if (m) return { k: 'n', n: Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) };
+      /* "dd/MM HH:mm" (server không gửi năm, vd cột "Gửi lúc"): lấy năm hiện tại; quá hôm nay hơn 1 ngày thì là năm trước */
+      m = /^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})$/.exec(v);
+      if (m) {
+        var now = new Date(), y = now.getFullYear();
+        var nowN = Date.UTC(y, now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
+        var tn = Date.UTC(y, +m[2] - 1, +m[1], +m[3], +m[4]);
+        if (tn > nowN + 86400000) tn = Date.UTC(y - 1, +m[2] - 1, +m[1], +m[3], +m[4]);
+        return { k: 'n', n: tn };
+      }
+      m = /^[-+]?\d[\d.,]*/.exec(v);
+      if (m && !/^[-+]?0\d/.test(v) && !/\d/.test(v.slice(m[0].length))) {      // 0902…, 00123 là mã chứ không phải số
+        var s = m[0].replace(/[.,]+$/, ''), n;
+        if (/^[-+]?\d{1,3}([.,]\d{3})+$/.test(s)) n = parseFloat(s.replace(/[.,]/g, ''));
+        else n = parseFloat(s.replace(',', '.'));
+        if (!isNaN(n)) return { k: 'n', n: n };
+      }
+      return { k: 't', s: v };
+    }
+    function cellText(row, col) {
+      var c = row.cells[col];
+      if (!c) return '';
+      return c.hasAttribute('data-sort') ? String(c.getAttribute('data-sort')).trim() : txt(c);
+    }
+
+    /* Sắp xếp một danh sách theo chữ của ô: ô trống luôn xuống cuối, cả cột là số/ngày thì so theo giá trị, còn lại so chữ.
+       Dùng chung cho dòng trên màn hình và cho dữ liệu báo cáo nhiều trang (sắp xếp TOÀN BỘ dòng rồi mới chia trang). */
+    function sortItems(items, textOf, dir) {
+      var list = items.map(function (it, i) { var tx = textOf(it); return { it: it, i: i, tx: tx, v: parseVal(tx) }; });
+      var numeric = list.every(function (g) { return !g.v || g.v.k === 'n'; });
+      var cmp = new Intl.Collator(lang(), { numeric: true, sensitivity: 'base' }), sign = dir === 'asc' ? 1 : -1;
+      list.sort(function (a, b) {
+        if (!a.v || !b.v) return a.v ? -1 : b.v ? 1 : a.i - b.i;
+        var c = numeric ? a.v.n - b.v.n : cmp.compare(a.tx, b.tx);
+        return c ? c * sign : a.i - b.i;
+      });
+      return list.map(function (g) { return g.it; });
+    }
+
+    function sortTbody(tbody, col, dir) {
+      var groups = groupsOf(tbody);
+      if (!groups || groups.length < 2) return;
+
+      var sorted = sortItems(groups, function (g) { return cellText(g.rows[0], col); }, dir);
+      if (sorted.every(function (g, i) { return g === groups[i]; })) return;          // đã đúng thứ tự: không động vào DOM
+
+      /* nhớ thứ tự ban đầu (cho code ghép dòng theo chỉ số, vd RequestEdit) trước khi đổi chỗ */
+      Array.prototype.forEach.call(tbody.rows, function (r, i) { if (!r.hasAttribute('data-ts-i')) r.setAttribute('data-ts-i', i); });
+      sorted.forEach(function (g) { g.rows.forEach(function (r) { tbody.appendChild(r); }); });
+    }
+
+    function applyTable(table) {
+      var hr = headRow(table), key = keyOf(table), st = STATE[key];
+      enhance(table);
+
+      var sig = sigOf(hr);
+      if (st && st.sig !== sig) { delete STATE[key]; st = null; }               // cột đổi (vd báo cáo khác): bỏ sắp xếp cũ
+
+      if (st && !table.hasAttribute('data-ts-external')) for (var b = 0; b < table.tBodies.length; b++) {
+        if (!table.tBodies[b].classList.contains('sk-body')) sortTbody(table.tBodies[b], st.col, st.dir);
+      }
+      columns(hr).forEach(function (c) {
+        c.th.setAttribute('aria-sort', st && st.col === c.col ? (st.dir === 'asc' ? 'ascending' : 'descending') : 'none');
+      });
+      syncBar(table, key, st, sig);
+    }
+
+    /* ── ô chọn cột cho bảng dạng thẻ ── */
+    function syncBar(table, key, st, sig) {
+      var wrap = table.closest('.table-wrap');
+      if (!wrap || !isCards(table)) return;
+      var bar = wrap.previousElementSibling;
+      if (!bar || !bar.classList.contains('ts-bar') || bar.getAttribute('data-for') !== key) {
+        bar = document.createElement('div');
+        bar.className = 'ts-bar'; bar.setAttribute('data-for', key);
+        bar.innerHTML = '<select></select><button type="button" class="btn ghost sm"></button>';
+        bar.firstChild.onchange = function () { pick(bar._table, key, this.value); };
+        bar.lastChild.onclick = function () { flip(bar._table, key); };
+        wrap.parentNode.insertBefore(bar, wrap);
+      }
+      bar._table = table;
+
+      var cols = columns(headRow(table)), sel = bar.firstChild, btn = bar.lastChild;
+      var rows = 0;
+      for (var b = 0; b < table.tBodies.length; b++) if (!table.tBodies[b].classList.contains('sk-body')) rows += table.tBodies[b].rows.length;
+      bar.hidden = cols.length === 0 || rows < 2;
+
+      var want = sig + '|' + lang();
+      if (bar.getAttribute('data-sig') !== want) {
+        bar.setAttribute('data-sig', want);
+        sel.innerHTML = '<option value="">' + escapeHtml(t('ts.sortBy')) + '</option>' + cols.map(function (c) {
+          return '<option value="' + c.col + '">' + escapeHtml(txt(c.th)) + '</option>';
+        }).join('');
+        sel.setAttribute('aria-label', t('ts.sortBy'));
+      }
+      sel.value = st ? String(st.col) : '';
+      btn.disabled = !st;
+      btn.innerHTML = '<svg aria-hidden="true" class="ico"><use href="#i-' + (st && st.dir === 'desc' ? 'arrow-down' : 'arrow-up') + '"></use></svg>';
+      btn.title = btn.ariaLabel = t(st && st.dir === 'desc' ? 'ts.desc' : 'ts.asc');
+    }
+
+    /* ── thao tác của người dùng ── */
+    function pick(table, key, col) {
+      if (!table) return;
+      if (col === '') delete STATE[key]; else STATE[key] = { sig: sigOf(headRow(table)), col: Number(col), dir: 'asc' };
+      runNow(table);
+    }
+    function flip(table, key) {
+      var st = STATE[key];
+      if (!table || !st) return;
+      st.dir = st.dir === 'asc' ? 'desc' : 'asc';
+      runNow(table);
+    }
+    function runNow(table) {
+      pause();
+      try { applyTable(table); } finally { resume(); }
+      if (table.hasAttribute('data-ts-external')) table.dispatchEvent(new CustomEvent('ts-sorted', { bubbles: true }));
+    }
+
+    document.addEventListener('click', function (ev) {
+      var b = ev.target.closest && ev.target.closest('.th-sort');
+      if (!b) return;
+      var th = b.closest('th'), table = th && th.closest('table');
+      if (!table) return;
+      var key = keyOf(table), col = Number(th.getAttribute('data-ts-col')), st = STATE[key];
+      if (st && st.col === col) flip(table, key);
+      else pick(table, key, String(col));
+    });
+
+    /* Cho bảng có dữ liệu nhiều trang (data-ts-external): trạng thái sắp xếp hiện tại của bảng, hoặc null nếu chưa sắp xếp. */
+    window.tsSortState = function (table) {
+      var hr = headRow(table), st = STATE[keyOf(table)];
+      return st && hr && st.sig === sigOf(hr) ? { col: st.col, dir: st.dir } : null;
+    };
+    window.tsSortItems = sortItems;
+
+    /* Thứ tự ban đầu của các dòng (như lúc dựng bảng), dù bảng đã được sắp xếp. Cho code ghép dòng theo chỉ số. */
+    window.tsOriginalRows = function (table) {
+      var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr'));
+      if (!rows.every(function (r) { return r.hasAttribute('data-ts-i'); })) return rows;
+      return rows.sort(function (a, b) { return a.getAttribute('data-ts-i') - b.getAttribute('data-ts-i'); });
+    };
+
+    /* ── theo dõi DOM ──
+       Chỉ phản ứng khi bảng được dựng lại (thêm/bớt dòng, thay tiêu đề), KHÔNG khi một ô đổi chữ:
+       nếu không, gõ số đếm ở Kiểm kê sẽ làm dòng nhảy đi khi đang gõ. */
+    function relevant(recs) {
+      for (var i = 0; i < recs.length; i++) {
+        var r = recs[i], t0 = r.target, tag = t0.nodeName;
+        if (tag === 'TABLE' || tag === 'THEAD' || tag === 'TBODY' || tag === 'TFOOT') return true;
+        if (t0.closest && t0.closest('thead')) return true;
+        for (var j = 0; j < r.addedNodes.length; j++) {
+          var n = r.addedNodes[j];
+          if (n.nodeType === 1 && (n.nodeName === 'TABLE' || (n.querySelector && n.querySelector('table')))) return true;
+        }
+      }
+      return false;
+    }
+    function pause() { if (mo) mo.disconnect(); }
+    function resume() { if (mo) { mo.takeRecords(); mo.observe(document.body, { childList: true, subtree: true }); } }
+
+    function runAll() {
+      queued = false;
+      pause();
+      try {
+        var tbs = document.querySelectorAll('table');
+        for (var i = 0; i < tbs.length; i++) {
+          try { if (eligible(tbs[i])) applyTable(tbs[i]); } catch (e) { /* một bảng lỗi không được chặn các bảng khác */ }
+        }
+      } finally { resume(); }
+    }
+    function schedule() { if (!queued) { queued = true; requestAnimationFrame(runAll); } }
+
+    function start() {
+      mo = new MutationObserver(function (recs) { if (relevant(recs)) schedule(); });
+      mo.observe(document.body, { childList: true, subtree: true });
+      schedule();
+    }
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  })();
+</script>

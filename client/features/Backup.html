@@ -1,0 +1,135 @@
+<!-- Thẻ "Sao lưu dữ liệu" trong trang Quản trị. Gắn vào <div id="bkMount"> (Index.html). Nạp SAU I18n.html và Toast.html. -->
+<style>
+  .bk-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+  .bk-head .sec-title{ margin:0; }
+  .bk-meta{ font-size:var(--fs-xs); color:var(--n-500); margin:2px 0 12px; }
+  .bk-meta.warn{ color:var(--amber); font-weight:600; }
+  .bk-actions{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
+  .bk-card a{ color:var(--g-600); }
+</style>
+
+<script>
+  (function () {
+    const vi = {
+      'bk.title':'Sao lưu dữ liệu', 'bk.auto.on':'Tự động mỗi 3 tháng', 'bk.auto.off':'Chưa bật tự động',
+      'bk.last':'Lần gần nhất: {at} ({ago})', 'bk.none':'Chưa có bản sao lưu nào.',
+      'bk.stale':'Đã quá hạn 3 tháng mà chưa có bản sao lưu mới — kiểm tra lịch tự động.',
+      'bk.now':'Sao lưu ngay', 'bk.enable':'Bật tự động', 'bk.disable':'Tắt tự động', 'bk.folder':'Mở thư mục',
+      'bk.col.name':'Bản sao lưu', 'bk.col.at':'Thời điểm', 'bk.col.ago':'Cách đây',
+      'bk.hint':'Mỗi bản là một bản sao đầy đủ của file Sheet trong Drive, giữ {keep} bản gần nhất. Bản cũ vào thùng rác Drive. Tự động sao lưu 3 tháng một lần; cần thêm bản lúc nào thì bấm "Sao lưu ngay".',
+      'bk.autoErr':'Chưa bật được lịch tự động: {e}. Bấm "Bật tự động" hoặc chạy installBackupTrigger trong Apps Script.',
+      'bk.running':'Đang sao lưu… (có thể mất vài chục giây)', 'bk.ago.lt1':'dưới 1 giờ', 'bk.ago.h':'{n} giờ', 'bk.ago.d':'{n} ngày'
+    };
+    const en = {
+      'bk.title':'Data backup', 'bk.auto.on':'Automatic, every 3 months', 'bk.auto.off':'Automatic backup is off',
+      'bk.last':'Latest: {at} ({ago} ago)', 'bk.none':'No backups yet.',
+      'bk.stale':'No new backup for more than 3 months — check the automatic schedule.',
+      'bk.now':'Back up now', 'bk.enable':'Turn on automatic', 'bk.disable':'Turn off automatic', 'bk.folder':'Open folder',
+      'bk.col.name':'Backup', 'bk.col.at':'Created', 'bk.col.ago':'Age',
+      'bk.hint':'Each backup is a full copy of the Sheet file in Drive; the latest {keep} are kept. Older ones go to the Drive trash. Automatic backups run every 3 months; press "Back up now" whenever you need another.',
+      'bk.autoErr':'Could not turn on the schedule: {e}. Press "Turn on automatic" or run installBackupTrigger in Apps Script.',
+      'bk.running':'Backing up… (may take a few dozen seconds)', 'bk.ago.lt1':'under 1 hour', 'bk.ago.h':'{n} h', 'bk.ago.d':'{n} d'
+    };
+    Object.assign(I18N.vi, vi);
+    Object.assign(I18N.en, en);
+  })();
+
+  let BK_DATA = null;
+  let BK_BUSY = false;
+  let BK_ENSURED = false;     // chỉ tự bật lịch một lần mỗi lần mở app
+
+  function bkAgo(h) {
+    if (h < 1) return t('bk.ago.lt1');
+    if (h < 48) return t('bk.ago.h', { n: Math.round(h) });
+    return t('bk.ago.d', { n: Math.round(h / 24) });
+  }
+
+  /** Gọi khi mở trang Quản trị. */
+  function bkOnEnter() {
+    if (typeof IS_ADMIN === 'undefined' || !IS_ADMIN || !el('bkMount')) return;
+    bkLoad(!BK_ENSURED);
+    BK_ENSURED = true;
+  }
+
+  function bkCall(name, args, done) {
+    if (BK_BUSY) return;
+    BK_BUSY = true;
+    const r = google.script.run
+      .withSuccessHandler(function (res) {
+        BK_BUSY = false;
+        if (!res || res.ok === false) { toast((res && res.message) || t('msg.error'), 'err'); bkRender(); return; }
+        done(res);
+      })
+      .withFailureHandler(function (e) { BK_BUSY = false; toast(t('msg.error') + ': ' + (e.message || e), 'err'); bkRender(); });
+    r[name].apply(r, args);
+  }
+
+  function bkLoad(ensure) {
+    bkCall('backupStatus', [!!ensure], function (res) {
+      BK_DATA = res;
+      if (res.autoError) toast(t('bk.autoErr', { e: res.autoError }), 'err');
+      bkRender();
+    });
+  }
+
+  function bkRunNow() {
+    toast(t('bk.running'), 'info', 6000);
+    bkCall('backupRunNow', [], function (res) {
+      toast(res.message);
+      bkLoad(false);
+    });
+  }
+
+  function bkDelete(id, name) {
+    uiDialog({ title: t('del.bkTitle'), body: t('del.bkBody', { name: name }), okLabel: t('del.ok'), danger: true }, function () {
+      bkCall('backupDelete', [id], function (res) { toast(res.message); bkLoad(false); });
+    });
+  }
+
+  function bkToggleAuto() {
+    bkCall('backupSetAuto', [!BK_DATA.auto], function (res) {
+      toast(res.message);
+      bkLoad(false);
+    });
+  }
+
+  function bkRender() {
+    const m = el('bkMount');
+    if (!m) return;
+    const s = BK_DATA;
+
+    if (!s) {
+      m.innerHTML = '<div class="card bk-card" style="margin-top:20px"><div class="bk-head"><h2 class="sec-title">' +
+        escapeHtml(t('bk.title')) + '</h2></div><div class="hint"><span class="spin" aria-hidden="true"></span> ' + escapeHtml(t('msg.loading')) + '</div></div>';
+      return;
+    }
+
+    const last = s.items[0];
+    let meta = last ? t('bk.last', { at: last.at, ago: bkAgo(last.ageHours) }) : t('bk.none');
+    const stale = s.auto && last && last.ageHours > (s.staleAfterHours || Infinity);
+    if (stale) meta += ' · ' + t('bk.stale');
+
+    let rows = '';
+    s.items.forEach(function (it) {
+      rows += '<tr><td><a href="' + escapeHtml(it.url) + '" target="_blank" rel="noopener">' + escapeHtml(it.name) + '</a></td>' +
+        '<td>' + escapeHtml(it.at) + '</td><td>' + escapeHtml(bkAgo(it.ageHours)) + '</td>' +
+        '<td><button class="btn ghost sm danger" onclick="bkDelete(\'' + escapeHtml(it.id) + '\', \'' + escapeHtml(it.name) + '\')">' + escapeHtml(t('del.btn')) + '</button></td></tr>';
+    });
+
+    m.innerHTML =
+      '<div class="card bk-card" style="margin-top:20px">' +
+        '<div class="bk-head"><h2 class="sec-title">' + escapeHtml(t('bk.title')) + '</h2>' +
+          '<span class="badge ' + (s.auto ? 'ok' : 'warn') + '">' +
+            escapeHtml(s.auto ? t('bk.auto.on') : t('bk.auto.off')) + '</span></div>' +
+        '<div class="bk-meta' + (stale ? ' warn' : '') + '">' + escapeHtml(meta) + '</div>' +
+        '<div class="bk-actions">' +
+          '<button class="btn" onclick="bkRunNow()"' + (BK_BUSY ? ' disabled' : '') + '>' + escapeHtml(t('bk.now')) + '</button>' +
+          '<button class="btn ghost" onclick="bkToggleAuto()">' + escapeHtml(s.auto ? t('bk.disable') : t('bk.enable')) + '</button>' +
+          (s.folderUrl ? '<a class="btn ghost" href="' + escapeHtml(s.folderUrl) + '" target="_blank" rel="noopener">' + escapeHtml(t('bk.folder')) + '</a>' : '') +
+        '</div>' +
+        (rows ? '<div class="table-wrap short"><table><thead><tr><th>' + escapeHtml(t('bk.col.name')) + '</th><th>' +
+          escapeHtml(t('bk.col.at')) + '</th><th>' + escapeHtml(t('bk.col.ago')) + '</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '') +
+        '<p class="hint" style="margin-top:8px">' + escapeHtml(t('bk.hint', { keep: s.keep })) + '</p>' +
+      '</div>';
+  }
+</script>

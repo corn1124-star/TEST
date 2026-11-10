@@ -1,0 +1,7 @@
+.claude/
+.impeccable/
+floorplan/.cache/
+qa/results/
+qa/dist/
+node_modules/
+.clasp.json

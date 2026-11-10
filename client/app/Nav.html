@@ -1,0 +1,83 @@
+<script>
+  /* ============================================================
+     ĐIỀU HƯỚNG — tab chính + thanh con
+     ============================================================
+     Tab (đầu trang / đáy trên điện thoại):  Trang chủ · Kho · Báo cáo · Quản lý (admin)
+     Trang vẫn là các <section class="page"> cũ; tab chỉ GOM chúng:
+       Kho     = Kho (tồn kho & nhập/xuất) · Kiểm kê (admin) · Lịch sử (admin) · SIM (POPS + admin)
+       Quản lý = Duyệt & Người dùng (kèm sao lưu, đã xóa) · SKU · Phiếu kho
+     "Yêu cầu của tôi" nằm trong menu tài khoản, không chiếm chỗ ở menu chính.
+     ============================================================ */
+
+  Object.assign(I18N.vi, {
+    'act.more':'Thêm', 'nav.aria':'Menu chính',
+    'tab.home':'Trang chủ', 'tab.kho':'Kho', 'tab.report':'Báo cáo', 'tab.admin':'Quản lý',
+    'sub.kho':'Kho', 'sub.stocktake':'Kiểm kê', 'sub.history':'Lịch sử', 'sub.sim':'SIM', 'sub.pops':'POPS',
+    'sub.admin':'Duyệt & Người dùng', 'sub.sku':'SKU', 'sub.ticket':'Phiếu kho',
+    'home.title':'Trang chủ', 'src.label':'Nguồn dữ liệu', 'src.sheets':'Google Sheets', 'src.bq':'BigQuery',
+    'me.menu':'Yêu cầu của tôi', 'guide.menu':'Hướng dẫn sử dụng', 'adm.title':'Quản lý', 'adm.sub':'Duyệt yêu cầu nhập/xuất, quản lý người dùng, sao lưu, xem và khôi phục dữ liệu đã xóa'
+  });
+  Object.assign(I18N.en, {
+    'act.more':'More', 'nav.aria':'Main menu',
+    'tab.home':'Home', 'tab.kho':'Stock', 'tab.report':'Reports', 'tab.admin':'Manage',
+    'sub.kho':'Stock', 'sub.stocktake':'Stocktake', 'sub.history':'History', 'sub.sim':'SIM', 'sub.pops':'POPS',
+    'sub.admin':'Approvals & Users', 'sub.sku':'SKU', 'sub.ticket':'Stock slips',
+    'home.title':'Home', 'src.label':'Data source', 'src.sheets':'Google Sheets', 'src.bq':'BigQuery',
+    'me.menu':'My requests', 'guide.menu':'User guide', 'adm.title':'Manage', 'adm.sub':'Approve receive/issue requests, manage users and backups, view and restore deleted data'
+  });
+
+  /* trang -> tab chứa nó ('' = không thuộc tab nào, vd Yêu cầu của tôi) */
+  const TAB_OF = { home:'home', kho:'kho', history:'kho', stocktake:'kho', sim:'kho', sku:'admin', report:'report', admin:'admin', ticket:'admin', me:'' };
+  const SUBNAV = { kho: ['kho', 'stocktake', 'history', 'sim'], admin: ['admin', 'sku', 'ticket'] };
+  const ADMIN_SUB = { history: 1, stocktake: 1, sku: 1, ticket: 1 };
+
+  /* Mở trang POPS (cùng web app, ?page=pops). Cả khung cửa sổ chuyển trang, vì POPS là trang riêng. */
+  function openPops() {
+    if (SESSION && SESSION.popsUrl) window.open(SESSION.popsUrl, '_top');
+  }
+
+  function navSync(page) {
+    const np = el('navPops'); if (np) np.hidden = !(SESSION && SESSION.popsUrl);          // tab POPS: chỉ người có quyền POPS
+    const tab = TAB_OF[page] === undefined ? page : TAB_OF[page];
+
+    document.querySelectorAll('.topnav .nav-item').forEach(function (a) {
+      const on = a.getAttribute('data-page') === tab;
+      a.classList.toggle('active', on);
+      a.setAttribute('aria-current', on ? 'page' : 'false');
+    });
+
+    const box = el('subnav');
+    const sub = (SUBNAV[tab] || []).filter(function (p) {
+      if (p === 'sim') return pageAllowed_('sim');          // POPS + admin
+      return IS_ADMIN || !ADMIN_SUB[p];
+    });
+    if (box) {
+      if (sub.length < 2) { box.hidden = true; box.innerHTML = ''; }
+      else {
+        box.hidden = false;
+        box.innerHTML = sub.map(function (p) {
+          return '<a class="sub-item' + (p === page ? ' on' : '') + '" onclick="goto(\'' + p + '\')">' + escapeHtml(t('sub.' + p)) + '</a>';
+        }).join('');
+      }
+    }
+    if (typeof helpEnsure === 'function') helpEnsure(page);
+  }
+
+  /* đổi ngôn ngữ phải vẽ lại thanh con; nút chỉ còn icon trên điện thoại vẫn có tên khi chạm giữ */
+  (function () {
+    const orig = applyI18n;
+    applyI18n = function () {
+      orig();
+      if (typeof PAGE !== 'undefined') navSync(PAGE);
+      const nv = el('topnav'); if (nv) nv.setAttribute('aria-label', t('nav.aria'));
+      document.querySelectorAll('.btn > span[data-i18n]').forEach(function (s) { s.parentNode.title = s.textContent; });
+    };
+  })();
+
+  /* menu "Thêm": đóng khi bấm ra ngoài hoặc chọn một mục */
+  document.addEventListener('click', function (ev) {
+    document.querySelectorAll('details.more[open]').forEach(function (d) {
+      if (!d.contains(ev.target) || ev.target.closest('.more-pop .btn')) d.removeAttribute('open');
+    });
+  });
+</script>

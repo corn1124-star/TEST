@@ -1,0 +1,305 @@
+<!-- Trang SIM (POPS + admin, nằm trong tab Kho): số điện thoại · người đang giữ · người liên hệ · ai điền. Tự dựng #page-sim khi nạp. -->
+<style>
+  #page-sim [hidden]{ display:none !important; }
+  .sim-bar{ display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin:0 0 12px; }
+  .sim-bar .field{ flex:1 1 150px; min-width:130px; max-width:260px; }
+  .sim-bar .grow{ flex:2 1 220px; max-width:360px; }
+  .sim-bar .btns{ display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
+  .sim-card{ margin:0 0 16px; }
+  .sim-card h2{ margin:0 0 12px; font-size:var(--fs-md); }
+  .sim-card .actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; }
+  .sim-phone{ font-variant-numeric:tabular-nums; letter-spacing:.2px; white-space:nowrap; }
+  .sim-off td{ opacity:.55; }
+  .sim-off td:last-child{ opacity:1; }
+  .sim-none{ color:var(--n-400); }
+  .sim-bar .sort{ display:flex; gap:8px; align-items:flex-end; flex:1 1 190px; max-width:290px; }
+  .sim-bar .sort select{ flex:1; min-width:0; }
+  .sim-tools{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+</style>
+
+<script>
+  (function () {
+    Object.assign(I18N.vi, {
+      'sim.title':'SIM điện thoại', 'sim.sub':'Danh sách SIM do team POPS và Admin quản lý: số điện thoại, ai đang giữ, ai liên hệ và ai đã điền. SIM không tính vào tồn kho.',
+      'sim.search':'Tìm số, tên người, ghi chú…', 'sim.onlyActive':'Đang dùng', 'sim.withDeleted':'Gồm đã xóa',
+      'sim.add':'Thêm SIM', 'sim.reload':'Tải lại',
+      'sim.c.phone':'Số điện thoại', 'sim.c.holder':'Người đang giữ', 'sim.c.contact':'Người liên hệ', 'sim.c.note':'Ghi chú', 'sim.c.by':'Người điền', 'sim.c.time':'Thời gian điền',
+      'sim.sortBy':'Sắp xếp theo', 'sim.asc':'Tăng dần (bấm để đổi sang giảm dần)', 'sim.desc':'Giảm dần (bấm để đổi sang tăng dần)',
+      'sim.edit':'Sửa', 'sim.delete':'Xóa', 'sim.restore':'Khôi phục', 'sim.save':'Lưu', 'sim.cancel':'Hủy',
+      'sim.newTitle':'Thêm SIM', 'sim.editTitle':'Sửa SIM',
+      'sim.phone':'Số điện thoại', 'sim.phoneHint':'10 số, bắt đầu bằng 0 (nhập +84 hoặc thiếu số 0 vẫn được).',
+      'sim.holder':'Người đang giữ', 'sim.contact':'Người liên hệ', 'sim.personPh':'Chọn từ danh sách hoặc gõ tên', 'sim.personHint':'Cần ít nhất một trong hai người. Người ngoài công ty: gõ tên.',
+      'sim.note':'Ghi chú',
+      'sim.empty':'Chưa có SIM nào. Bấm "Thêm SIM" để bắt đầu.', 'sim.noMatch':'Không có SIM nào khớp.', 'sim.shown':'Hiện {n}/{total} SIM',
+      'sim.fromStock':'Nhập từ tồn kho', 'sim.edited':'Sửa', 'sim.deletedBy':'Đã xóa bởi {who} · {at}',
+      'sim.saved':'Đã lưu.', 'sim.confirmDel':'Xóa SIM {phone}? Có thể khôi phục lại sau.', 'sim.yesDel':'Xóa SIM',
+    });
+    Object.assign(I18N.en, {
+      'sim.title':'Phone SIMs', 'sim.sub':'SIM list managed by the POPS team and Admins: phone number, who holds it, who to contact and who entered it. SIMs are not part of stock.',
+      'sim.search':'Search number, person, note…', 'sim.onlyActive':'Active', 'sim.withDeleted':'Include deleted',
+      'sim.add':'Add SIM', 'sim.reload':'Reload',
+      'sim.c.phone':'Phone number', 'sim.c.holder':'Held by', 'sim.c.contact':'Contact', 'sim.c.note':'Note', 'sim.c.by':'Entered by', 'sim.c.time':'Time entered',
+      'sim.sortBy':'Sort by', 'sim.asc':'Ascending (press to switch to descending)', 'sim.desc':'Descending (press to switch to ascending)',
+      'sim.edit':'Edit', 'sim.delete':'Delete', 'sim.restore':'Restore', 'sim.save':'Save', 'sim.cancel':'Cancel',
+      'sim.newTitle':'Add SIM', 'sim.editTitle':'Edit SIM',
+      'sim.phone':'Phone number', 'sim.phoneHint':'10 digits starting with 0 (+84 or a missing leading 0 is fine).',
+      'sim.holder':'Held by', 'sim.contact':'Contact person', 'sim.personPh':'Pick from the list or type a name', 'sim.personHint':'At least one of the two. For people outside the company, type a name.',
+      'sim.note':'Note',
+      'sim.empty':'No SIM yet. Press "Add SIM" to start.', 'sim.noMatch':'No SIM matches.', 'sim.shown':'Showing {n}/{total} SIMs',
+      'sim.fromStock':'Imported from stock', 'sim.edited':'Edited', 'sim.deletedBy':'Deleted by {who} · {at}',
+      'sim.saved':'Saved.', 'sim.confirmDel':'Delete SIM {phone}? You can restore it later.', 'sim.yesDel':'Delete SIM',
+    });
+  })();
+
+  let SM = { built: false, rows: [], people: [], q: '', all: false, editing: '', sort: 'time', dir: 'desc' };
+
+  /* cột sắp xếp: khoá -> { nhãn, giá trị so sánh }. Ô trống luôn xuống cuối, kể cả khi giảm dần. */
+  const SIM_SORTS = {
+    phone:   { label: 'sim.c.phone',   val: function (r) { return r.phone; } },
+    holder:  { label: 'sim.c.holder',  val: function (r) { return r.holderName; } },
+    contact: { label: 'sim.c.contact', val: function (r) { return r.contactName; } },
+    note:    { label: 'sim.c.note',    val: function (r) { return r.note; } },
+    by:      { label: 'sim.c.by',      val: function (r) { return r.source === 'Database' ? t('sim.fromStock') : (r.createdByName || r.createdBy); } },
+    time:    { label: 'sim.c.time',    val: function (r) { return r.createdTs || 0; } }
+  };
+  const SIM_HEAD = ['phone', 'holder', 'contact', 'note', 'by'];    // cột bấm được trên tiêu đề bảng
+
+  function simSortRows(rows) {
+    const s = SIM_SORTS[SM.sort] || SIM_SORTS.time, sign = SM.dir === 'asc' ? 1 : -1;
+    const empty = function (v) { return v === '' || v === 0 || v == null; };
+    return rows.slice().sort(function (a, b) {
+      const x = s.val(a), y = s.val(b), ex = empty(x), ey = empty(y);
+      if (ex !== ey) return ex ? 1 : -1;
+      const c = ex ? 0 : (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'vi', { numeric: true, sensitivity: 'base' }));
+      return c ? c * sign : String(a.phone).localeCompare(String(b.phone));
+    });
+  }
+
+  function simSortPick(key) {
+    if (!SIM_SORTS[key]) return;
+    SM.sort = key; SM.dir = key === 'time' ? 'desc' : 'asc';
+    simRender();
+  }
+
+  /* bấm tiêu đề: cột khác -> tăng dần; cùng cột -> đảo chiều */
+  function simSortBy(key) {
+    if (SM.sort === key) SM.dir = SM.dir === 'asc' ? 'desc' : 'asc'; else { SM.sort = key; SM.dir = 'asc'; }
+    simRender();
+  }
+
+  function simSortFlip() { SM.dir = SM.dir === 'asc' ? 'desc' : 'asc'; simRender(); }
+
+  function simBuild() {
+    if (SM.built) return;
+    const host = el('page-ticket') && el('page-ticket').parentNode;
+    if (!host) return;
+
+    const s = document.createElement('section');
+    s.className = 'page'; s.id = 'page-sim';
+    s.innerHTML =
+      '<h1 class="page-title" data-i18n="sim.title"></h1><p class="page-sub" data-i18n="sim.sub"></p>' +
+      '<div class="sim-bar">' +
+        '<div class="field grow"><input type="text" id="simQ" data-i18n-ph="sim.search" oninput="simFilter()" autocomplete="off"></div>' +
+        '<div class="field"><select id="simStatus" onchange="simFilter()"></select></div>' +
+        '<div class="sort"><div class="field"><select id="simSort" onchange="simSortPick(this.value)"></select></div>' +
+          '<button class="btn ghost sm" id="simDir" onclick="simSortFlip()"></button></div>' +
+        '<div class="btns">' +
+          '<button class="btn ghost sm" onclick="simLoad()">' + icon('refresh') + '<span data-i18n="sim.reload"></span></button>' +
+          '<button class="btn sm" onclick="simFormOpen(\'\')">' + icon('user') + '<span data-i18n="sim.add"></span></button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card sim-card" id="simFormCard" hidden></div>' +
+      '<div class="box info" id="simInfo" hidden></div>' +
+      '<div class="table-wrap tall rt"><table id="simTable" data-no-sort></table></div>' +
+      '<datalist id="simPeople"></datalist>';
+    host.appendChild(s);
+    SM.built = true;
+    applyI18n();
+  }
+
+  function simOnEnter() {
+    simBuild();
+    if (!SM.rows.length) simLoad(); else simRender();
+  }
+
+  function simLoad() {
+    showWait('simInfo', 'simTable', 6);
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) { showBox('simInfo', escapeHtml((res && res.message) || t('msg.error')), 'err'); return; }
+        SM.rows = res.rows; SM.people = res.people || [];
+        el('simPeople').innerHTML = SM.people.map(function (p) {
+          return '<option value="' + escapeHtml(p.username + ' (' + p.email + ')') + '"></option>';
+        }).join('');
+        hide('simInfo');
+        simRender();
+      })
+      .withFailureHandler(function (e) { showBox('simInfo', t('msg.error') + ': ' + escapeHtml(e.message || e), 'err'); })
+      .simList();
+  }
+
+  function simFilter() {
+    SM.q = el('simQ').value.trim().toLowerCase();
+    SM.all = el('simStatus').value === 'all';
+    simRender(true);
+  }
+
+  /* 0902343108 -> 0902 343 108 (chỉ để đọc; ô tìm kiếm khớp cả dạng liền) */
+  function simShowPhone(p) { return /^\d{10}$/.test(p) ? p.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 $2 $3') : p; }
+
+  function simPerson(name, email) {
+    if (!name) return '<span class="sim-none">—</span>';
+    return escapeHtml(name) + (email ? '<div class="cell-sub">' + escapeHtml(email) + '</div>' : '');
+  }
+
+  function simWho(r) {
+    let h;
+    if (r.source === 'Database') {
+      h = '<span class="badge neutral">' + escapeHtml(t('sim.fromStock')) + '</span>';
+      if (r.legacyCode) h += '<div class="cell-sub mono">' + escapeHtml(r.legacyCode) + '</div>';
+    } else {
+      h = escapeHtml(r.createdByName || r.createdBy || '—') + '<div class="cell-sub">' + escapeHtml(r.createdAt) + '</div>';
+    }
+    if (r.updatedAt) h += '<div class="cell-sub">' + escapeHtml(t('sim.edited')) + ': ' + escapeHtml(r.updatedByName || r.updatedBy) + ' · ' + escapeHtml(r.updatedAt) + '</div>';
+    return h;
+  }
+
+  function simRender(keepBar) {
+    if (!SM.built) return;
+
+    if (!keepBar) {
+      el('simStatus').innerHTML = '<option value="active"' + (SM.all ? '' : ' selected') + '>' + escapeHtml(t('sim.onlyActive')) + '</option>' +
+        '<option value="all"' + (SM.all ? ' selected' : '') + '>' + escapeHtml(t('sim.withDeleted')) + '</option>';
+    }
+
+    /* ô chọn cột + nút chiều sắp xếp (trên điện thoại bảng không có tiêu đề nên đây là cách duy nhất) */
+    el('simSort').innerHTML = Object.keys(SIM_SORTS).map(function (k) {
+      return '<option value="' + k + '"' + (k === SM.sort ? ' selected' : '') + '>' + escapeHtml(t(SIM_SORTS[k].label)) + '</option>';
+    }).join('');
+    el('simSort').setAttribute('aria-label', t('sim.sortBy'));
+    el('simDir').innerHTML = icon(SM.dir === 'asc' ? 'arrow-up' : 'arrow-down');
+    el('simDir').title = el('simDir').ariaLabel = t(SM.dir === 'asc' ? 'sim.asc' : 'sim.desc');
+
+    const pool = SM.rows.filter(function (r) { return SM.all || !r.deleted; });
+    const rows = simSortRows(pool.filter(function (r) {
+      return !SM.q || (r.phone + ' ' + simShowPhone(r.phone) + ' ' + r.holderName + ' ' + r.holderEmail + ' ' + r.contactName + ' ' + r.contactEmail + ' ' + r.note + ' ' + r.createdByName)
+        .toLowerCase().indexOf(SM.q) !== -1;
+    }));
+
+    const table = el('simTable');
+    table.innerHTML = '<thead><tr>' + SIM_HEAD.map(function (k) {
+      const on = SM.sort === k;
+      return '<th aria-sort="' + (on ? (SM.dir === 'asc' ? 'ascending' : 'descending') : 'none') + '">' +
+        '<button type="button" class="th-sort" onclick="simSortBy(\'' + k + '\')">' + escapeHtml(t(SIM_SORTS[k].label)) + icon('chevron-down') + '</button></th>';
+    }).join('') + '<th></th></tr></thead>';
+    const tb = document.createElement('tbody');
+    if (!rows.length) tb.appendChild(emptyRow(6, t(pool.length ? 'sim.noMatch' : 'sim.empty')));
+
+    rows.forEach(function (r) {
+      const tr = document.createElement('tr');
+      if (r.deleted) tr.className = 'sim-off';
+      tr.innerHTML =
+        '<td class="mono sim-phone">' + escapeHtml(simShowPhone(r.phone)) + '</td>' +
+        '<td class="wrap">' + simPerson(r.holderName, r.holderEmail) + '</td>' +
+        '<td class="wrap">' + simPerson(r.contactName, r.contactEmail) + '</td>' +
+        '<td class="wrap">' + (r.deleted
+          ? '<span class="badge neutral">' + escapeHtml(t('sim.deletedBy', { who: r.deletedByName || r.deletedBy, at: r.deletedAt })) + '</span>'
+          : (r.note ? escapeHtml(r.note) : '<span class="sim-none">—</span>')) + '</td>' +
+        '<td class="wrap">' + simWho(r) + '</td><td></td>';
+      const cell = document.createElement('div');
+      cell.className = 'sim-tools';
+      tr.cells[5].appendChild(cell);
+      if (r.deleted) {
+        cell.appendChild(simBtn(t('sim.restore'), 'refresh', function () { simRestore(r.id); }));
+      } else {
+        cell.appendChild(simBtn(t('sim.edit'), 'pencil', function () { simFormOpen(r.id); }));
+        cell.appendChild(simBtn(t('sim.delete'), 'trash', function () { simDeleteAsk(r); }));
+      }
+      tb.appendChild(tr);
+    });
+    table.appendChild(tb);
+    rtLabels(table);
+
+    if (SM.q && rows.length) showBox('simInfo', escapeHtml(t('sim.shown', { n: rows.length, total: pool.length })), 'info');
+    else hide('simInfo');
+  }
+
+  function simBtn(label, ico, fn) {
+    const b = document.createElement('button');
+    b.className = 'btn ghost sm'; b.innerHTML = icon(ico) + '<span></span>';
+    b.lastChild.textContent = label;
+    b.onclick = fn;
+    return b;
+  }
+
+  /* ── thêm / sửa ── */
+  function simPersonText(name, email) { return name ? (email ? name + ' (' + email + ')' : name) : ''; }
+
+  function simFormOpen(id) {
+    const r = id ? SM.rows.filter(function (x) { return x.id === id; })[0] : null;
+    if (id && !r) return;
+    SM.editing = id;
+    const c = el('simFormCard');
+    c.hidden = false;
+    c.innerHTML =
+      '<h2>' + escapeHtml(t(r ? 'sim.editTitle' : 'sim.newTitle')) + '</h2>' +
+      '<div class="grid">' +
+        '<div class="field w-md"><label for="simFPhone">' + escapeHtml(t('sim.phone')) + '</label>' +
+          '<input type="tel" id="simFPhone" inputmode="tel" maxlength="16" autocomplete="off" value="' + escapeHtml(r ? r.phone : '') + '">' +
+          '<div class="hint">' + escapeHtml(t('sim.phoneHint')) + '</div></div>' +
+        '<div class="field"><label for="simFHolder">' + escapeHtml(t('sim.holder')) + '</label>' +
+          '<input type="text" id="simFHolder" list="simPeople" maxlength="120" autocomplete="off" placeholder="' + escapeHtml(t('sim.personPh')) + '" value="' + escapeHtml(r ? simPersonText(r.holderName, r.holderEmail) : '') + '"></div>' +
+        '<div class="field"><label for="simFContact">' + escapeHtml(t('sim.contact')) + '</label>' +
+          '<input type="text" id="simFContact" list="simPeople" maxlength="120" autocomplete="off" placeholder="' + escapeHtml(t('sim.personPh')) + '" value="' + escapeHtml(r ? simPersonText(r.contactName, r.contactEmail) : '') + '"></div>' +
+        '<div class="field"><label for="simFNote">' + escapeHtml(t('sim.note')) + '</label>' +
+          '<input type="text" id="simFNote" maxlength="300" autocomplete="off" value="' + escapeHtml(r ? r.note : '') + '"></div>' +
+      '</div>' +
+      '<div class="hint">' + escapeHtml(t('sim.personHint')) + '</div>' +
+      '<div class="actions"><button class="btn sm" id="simFSave" onclick="simSave()">' + escapeHtml(t('sim.save')) + '</button>' +
+      '<button class="btn ghost sm" onclick="hide(\'simFormCard\')">' + escapeHtml(t('sim.cancel')) + '</button></div>' +
+      '<div class="box" id="simFMsg" hidden></div>';
+    c.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    el('simFPhone').focus();
+  }
+
+  function simSave() {
+    const btn = el('simFSave');
+    btn.disabled = true;
+    const d = { id: SM.editing, phone: el('simFPhone').value, holder: el('simFHolder').value,
+                contact: el('simFContact').value, note: el('simFNote').value };
+    google.script.run
+      .withSuccessHandler(function (res) {
+        btn.disabled = false;
+        if (!res || !res.ok) { showBox('simFMsg', escapeHtml((res && res.message) || t('msg.error')), 'err'); return; }
+        toast(res.message || t('sim.saved'));
+        hide('simFormCard'); simLoad();
+      })
+      .withFailureHandler(function (e) { btn.disabled = false; showBox('simFMsg', t('msg.error') + ': ' + escapeHtml(e.message || e), 'err'); })
+      .simSave(d);
+  }
+
+  /* ── xóa mềm / khôi phục ── */
+  function simDeleteAsk(r) {
+    uiDialog({ title: t('sim.delete'), body: t('sim.confirmDel', { phone: simShowPhone(r.phone) }), okLabel: t('sim.yesDel'), danger: true }, function () {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.ok) { toast((res && res.message) || t('msg.error'), 'err'); return; }
+          toast(res.message); simLoad();
+        })
+        .withFailureHandler(function (e) { toast(t('msg.error') + ': ' + (e.message || e), 'err'); })
+        .simDelete(r.id);
+    });
+  }
+
+  function simRestore(id) {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) { toast((res && res.message) || t('msg.error'), 'err'); return; }
+        toast(res.message); simLoad();
+      })
+      .withFailureHandler(function (e) { toast(t('msg.error') + ': ' + (e.message || e), 'err'); })
+      .simRestore(id);
+  }
+
+  simBuild();       // dựng sẵn để goto('sim') tìm thấy #page-sim
+</script>

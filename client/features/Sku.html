@@ -1,0 +1,261 @@
+<!-- Trang SKU (chỉ admin, nằm trong tab Quản lý): danh mục mã hàng, bộ phận, PIC + công cụ đổi mã cũ. Tự dựng #page-sku khi nạp. -->
+<style>
+  #page-sku [hidden]{ display:none !important; }
+  .sku-bar{ display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin:0 0 12px; }
+  .sku-bar .field{ flex:1 1 150px; min-width:130px; max-width:260px; }
+  .sku-bar .grow{ flex:2 1 220px; max-width:360px; }
+  .sku-bar .btns{ display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
+  .sku-card{ margin:0 0 16px; }
+  .sku-card .actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; }
+  .sku-card h2{ margin:0 0 12px; font-size:var(--fs-md); }
+  .sku-pic{ font-size:var(--fs-sm); color:var(--n-600); word-break:break-all; }
+  .sku-off td{ opacity:.55; }
+</style>
+
+<script>
+  (function () {
+    Object.assign(I18N.vi, {
+      'nav.sku':'SKU', 'sku.title':'Danh mục SKU', 'sku.sub':'Danh mục mã hàng cho admin: mỗi SKU là một mã duy nhất, thuộc một bộ phận (Team Code) và có thể có một người PIC. Tạo, sửa, ngừng dùng SKU tại đây.', 'sku.legacy':'Mã cũ',
+      'sku.search':'Tìm SKU, tên, PIC…', 'sku.allTeams':'Tất cả bộ phận', 'sku.onlyActive':'Đang dùng', 'sku.allStatus':'Cả đã ngừng',
+      'sku.add':'SKU mới', 'sku.reload':'Tải lại', 'sku.create':'Tạo SKU', 'sku.save':'Lưu', 'sku.cancel':'Huỷ',
+      'sku.c.sku':'SKU', 'sku.c.item':'Hàng', 'sku.c.team':'Bộ phận', 'sku.c.pic':'PIC', 'sku.c.stock':'Tồn', 'sku.c.status':'Trạng thái',
+      'sku.active':'Đang dùng', 'sku.inactive':'Ngừng', 'sku.edit':'Sửa', 'sku.empty':'Chưa có SKU nào.', 'sku.shown':'Hiện {n}/{total} SKU',
+      'sku.newTitle':'Thêm SKU mới', 'sku.editTitle':'Sửa SKU', 'sku.name':'Tên hàng', 'sku.variant':'Biến thể', 'sku.event':'Event', 'sku.unit':'Đơn vị',
+      'sku.cat':'Nhóm hàng', 'sku.subCat':'Phân nhóm', 'sku.note':'Ghi chú', 'sku.activeChk':'Đang dùng',
+      'sku.identityFixed':'Tên, nhóm, biến thể là danh tính của SKU nên không sửa được. Muốn đổi, hãy ngừng SKU này và tạo SKU mới.',
+      'sku.pick':'Chọn hàng đã có (SKU)', 'sku.pickHint':'Hàng đã có: chọn để dùng đúng SKU cũ. Hàng mới: để "Hàng mới" rồi điền bên dưới.',
+      'sku.newItem':'— Hàng mới —', 'sku.team':'Bộ phận (Team Code)', 'sku.pic':'PIC (người muốn nhập/xuất)', 'sku.picHint':'PIC chỉ để biết ai cần SKU này; việc duyệt vẫn do admin kho.',
+      'sku.noPic':'— Không có PIC —', 'sku.invalidOpt':'không còn hợp lệ', 'sku.needIdentity':'Cần chọn nhóm hàng, phân nhóm và nhập tên hàng (hoặc chọn một SKU đã có).',
+      'sku.created':'Đã tạo SKU {sku}.', 'sku.exists':'SKU đã có: {sku}.', 'sku.updated':'Đã cập nhật.',
+      'bin.freePh':'vd A1, kệ 3…', 'bin.freeHint':'Ghi chú vị trí để tìm hàng nhanh (không bắt buộc).'
+    });
+    Object.assign(I18N.en, {
+      'nav.sku':'SKU', 'sku.title':'SKU catalog', 'sku.sub':'Admin catalog of item codes: each SKU is one unique code, owned by one team (Team Code) with an optional PIC. Create, edit or deactivate SKUs here.', 'sku.legacy':'Legacy code',
+      'sku.search':'Search SKU, name, PIC…', 'sku.allTeams':'All teams', 'sku.onlyActive':'Active only', 'sku.allStatus':'Include inactive',
+      'sku.add':'New SKU', 'sku.reload':'Reload', 'sku.create':'Create SKU', 'sku.save':'Save', 'sku.cancel':'Cancel',
+      'sku.c.sku':'SKU', 'sku.c.item':'Item', 'sku.c.team':'Team', 'sku.c.pic':'PIC', 'sku.c.stock':'Stock', 'sku.c.status':'Status',
+      'sku.active':'Active', 'sku.inactive':'Inactive', 'sku.edit':'Edit', 'sku.empty':'No SKU yet.', 'sku.shown':'Showing {n}/{total} SKUs',
+      'sku.newTitle':'Add SKU', 'sku.editTitle':'Edit SKU', 'sku.name':'Item name', 'sku.variant':'Variant', 'sku.event':'Event', 'sku.unit':'Unit',
+      'sku.cat':'Category', 'sku.subCat':'Sub-category', 'sku.note':'Note', 'sku.activeChk':'Active',
+      'sku.identityFixed':'Name, category and variant define the SKU and cannot change. To change them, deactivate this SKU and create a new one.',
+      'sku.pick':'Pick an existing item (SKU)', 'sku.pickHint':'Existing item: pick it to reuse the same SKU. New item: leave "New item" and fill the fields below.',
+      'sku.newItem':'— New item —', 'sku.team':'Team (Team Code)', 'sku.pic':'PIC (who wants to receive/issue)', 'sku.picHint':'PIC only says who needs this SKU; the warehouse admin still approves.',
+      'sku.noPic':'— No PIC —', 'sku.invalidOpt':'no longer valid', 'sku.needIdentity':'Pick a category, sub-category and enter a name (or pick an existing SKU).',
+      'sku.created':'Created SKU {sku}.', 'sku.exists':'SKU already exists: {sku}.', 'sku.updated':'Updated.',
+      'bin.freePh':'e.g. A1, shelf 3…', 'bin.freeHint':'Free-text location note to find stock faster (optional).'
+    });
+  })();
+
+  let SK = { built: false, rows: [], meta: null, q: '', team: '', all: false, editing: '' };
+  const SK_MAX_ROWS = 300;
+
+  function skuBuild() {
+    if (SK.built) return;
+    const host = el('page-ticket') && el('page-ticket').parentNode;
+    if (!host) return;
+
+    const s = document.createElement('section');
+    s.className = 'page'; s.id = 'page-sku';
+    s.innerHTML =
+      '<h1 class="page-title" data-i18n="sku.title"></h1><p class="page-sub" data-i18n="sku.sub"></p>' +
+      '<div class="sku-bar">' +
+        '<div class="field grow"><input type="text" id="skuQ" data-i18n-ph="sku.search" oninput="skuFilter()" autocomplete="off"></div>' +
+        '<div class="field"><select id="skuTeam" onchange="skuFilter()"></select></div>' +
+        '<div class="field"><select id="skuStatus" onchange="skuFilter()"></select></div>' +
+        '<div class="btns">' +
+          '<button class="btn ghost sm" onclick="skuLoad()">' + icon('refresh') + '<span data-i18n="sku.reload"></span></button>' +
+          '<button class="btn sm" onclick="skuNewOpen()">' + icon('package') + '<span data-i18n="sku.add"></span></button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card sku-card" id="skuNewCard" hidden></div>' +
+      '<div class="card sku-card" id="skuEditCard" hidden></div>' +
+      '<div class="box info" id="skuInfo" hidden></div>' +
+      '<div class="table-wrap tall rt"><table id="skuTable"></table></div>';
+    host.appendChild(s);
+    SK.built = true;
+    applyI18n();
+  }
+
+  function skuOnEnter() {
+    skuBuild();
+    if (!SK.rows.length) skuLoad();
+    else skuRender();
+  }
+
+  function skuLoad() {
+    showWait('skuInfo', 'skuTable', 7);
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) { showBox('skuInfo', escapeHtml((res && res.message) || t('msg.error')), 'err'); return; }
+        SK.rows = res.rows;
+        hide('skuInfo');
+        if (SK.meta) skuRender(); else skuLoadMeta();      // meta (bộ phận, người dùng) tải một lần
+      })
+      .withFailureHandler(function (e) { showBox('skuInfo', t('msg.error') + ': ' + escapeHtml(e.message || e), 'err'); })
+      .skuList();
+  }
+
+  function skuLoadMeta() {
+    google.script.run.withSuccessHandler(function (res) {
+      if (res && res.ok) SK.meta = res;
+      skuRender();
+    }).skuMeta();
+  }
+
+  /* keep = true (form sửa): giá trị hiện tại không còn trong danh sách vẫn có option riêng, để Lưu không âm thầm đổi sang giá trị đầu danh sách. */
+  function skuTeamOptions(sel, withAll, keep) {
+    const teams = ((SK.meta && SK.meta.teams) || []).slice();
+    if (keep && sel && teams.indexOf(sel) === -1) teams.unshift(sel);
+    return (withAll ? '<option value="">' + escapeHtml(t('sku.allTeams')) + '</option>' : '') +
+      teams.map(function (x) { return '<option' + (x === sel ? ' selected' : '') + ' value="' + escapeHtml(x) + '">' + escapeHtml(x) + ((SK.meta && SK.meta.teams || []).indexOf(x) === -1 ? ' (' + escapeHtml(t('sku.invalidOpt')) + ')' : '') + '</option>'; }).join('');
+  }
+
+  function skuPicOptions(sel, keep) {
+    const people = ((SK.meta && SK.meta.people) || []).slice();
+    if (keep && sel && !people.some(function (p) { return p.email === sel; })) people.unshift({ email: sel, username: '', team: '', bad: true });
+    return '<option value="">' + escapeHtml(t('sku.noPic')) + '</option>' + people.map(function (p) {
+      return '<option value="' + escapeHtml(p.email) + '"' + (p.email === sel ? ' selected' : '') + '>' +
+        escapeHtml(p.bad ? p.email + ' (' + t('sku.invalidOpt') + ')' : p.username + ' · ' + p.email + (p.team ? ' (' + p.team + ')' : '')) + '</option>';
+    }).join('');
+  }
+
+  function skuFilter() {
+    SK.q = el('skuQ').value.trim().toLowerCase();
+    SK.team = el('skuTeam').value;
+    SK.all = el('skuStatus').value === 'all';
+    skuRender(true);
+  }
+
+  function skuRender(keepBar) {
+    if (!SK.built) return;
+
+    if (!keepBar) {
+      el('skuTeam').innerHTML = skuTeamOptions(SK.team, true);
+      el('skuStatus').innerHTML = '<option value="active"' + (SK.all ? '' : ' selected') + '>' + escapeHtml(t('sku.onlyActive')) + '</option>' +
+        '<option value="all"' + (SK.all ? ' selected' : '') + '>' + escapeHtml(t('sku.allStatus')) + '</option>';
+    }
+
+    const rows = SK.rows.filter(function (r) {
+      if (!SK.all && !r.active) return false;
+      if (SK.team && r.team !== SK.team) return false;
+      return !SK.q || (r.sku + ' ' + r.name + ' ' + r.variant + ' ' + r.cat + ' ' + r.sub + ' ' + r.pic + ' ' + r.team + ' ' + r.legacy).toLowerCase().indexOf(SK.q) !== -1;
+    });
+    const shown = rows.slice(0, SK_MAX_ROWS);
+
+    const table = el('skuTable');
+    table.innerHTML = '<thead><tr>' + ['sku.c.sku', 'sku.c.item', 'sku.c.team', 'sku.c.pic', 'sku.c.stock', 'sku.c.status', '']
+      .map(function (k) { return '<th>' + (k ? escapeHtml(t(k)) : '') + '</th>'; }).join('') + '</tr></thead>';
+    const tb = document.createElement('tbody');
+    if (!shown.length) tb.appendChild(emptyRow(7, t('sku.empty')));
+    shown.forEach(function (r) {
+      const tr = document.createElement('tr');
+      if (!r.active) tr.className = 'sku-off';
+      tr.innerHTML =
+        '<td class="mono">' + escapeHtml(r.sku) + (r.legacy ? '<div class="cell-sub" title="' + escapeHtml(t('sku.legacy')) + '">' + escapeHtml(r.legacy) + '</div>' : '') + '</td>' +
+        '<td class="wrap">' + escapeHtml(r.name) + (r.variant ? ' · <span class="cell-variant">' + escapeHtml(r.variant) + '</span>' : '') +
+          '<div class="cell-sub">' + escapeHtml(r.cat) + (r.sub ? ' › ' + escapeHtml(r.sub) : '') + '</div></td>' +
+        '<td><span class="badge neutral">' + escapeHtml(r.team || '—') + '</span></td>' +
+        '<td class="sku-pic">' + escapeHtml(r.pic || '—') + '</td>' +
+        '<td class="num">' + num(r.stock) + ' ' + escapeHtml(r.unit) + '</td>' +
+        '<td><span class="badge ' + (r.active ? 'ok' : 'neutral') + '">' + escapeHtml(t(r.active ? 'sku.active' : 'sku.inactive')) + '</span></td><td></td>';
+      const b = document.createElement('button');
+      b.className = 'btn ghost sm'; b.textContent = t('sku.edit');
+      b.onclick = function () { skuEditOpen(r.sku); };
+      tr.cells[6].appendChild(b);
+      tb.appendChild(tr);
+    });
+    table.appendChild(tb);
+
+    setText('skuInfo', '');
+    if (rows.length > shown.length) showBox('skuInfo', escapeHtml(t('sku.shown', { n: shown.length, total: rows.length })), 'info');
+    else hide('skuInfo');
+  }
+
+  /* ── tạo SKU ── */
+  function skuNewOpen() {
+    hide('skuEditCard');
+    const c = el('skuNewCard'), cats = (CONFIG && CONFIG.categories) || [];
+    c.hidden = false;
+    c.innerHTML =
+      '<h2>' + escapeHtml(t('sku.newTitle')) + '</h2>' +
+      '<div class="grid">' +
+        '<div class="field"><label>' + escapeHtml(t('sku.cat')) + '</label><select id="skuNCat" onchange="skuNCatChange()"><option value=""></option>' +
+          cats.map(function (x) { return '<option>' + escapeHtml(x) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field"><label>' + escapeHtml(t('sku.subCat')) + '</label><select id="skuNSub" onchange="skuNSubChange()"></select></div>' +
+        '<div class="field"><label>' + escapeHtml(t('sku.name')) + '</label><input type="text" id="skuNName" autocomplete="off"></div>' +
+        '<div class="field" id="skuNVarWrap" hidden><label>' + escapeHtml(t('sku.variant')) + '</label><input type="text" id="skuNVar" maxlength="60" autocomplete="off"></div>' +
+        '<div class="field"><label>' + escapeHtml(t('sku.event')) + '</label><input type="text" id="skuNEvent" autocomplete="off"></div>' +
+        '<div class="field w-sm"><label>' + escapeHtml(t('sku.unit')) + '</label><select id="skuNUnit">' +
+          ((CONFIG && CONFIG.units) || []).map(function (x) { return '<option>' + escapeHtml(x) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field w-md"><label>' + escapeHtml(t('sku.team')) + '</label><select id="skuNTeam">' + skuTeamOptions(SESSION && SESSION.teamCode, false) + '</select></div>' +
+        '<div class="field"><label>' + escapeHtml(t('sku.pic')) + '</label><select id="skuNPic">' + skuPicOptions('') + '</select></div>' +
+      '</div>' +
+      '<div class="actions"><button class="btn sm" onclick="skuNewSave()">' + escapeHtml(t('sku.create')) + '</button>' +
+      '<button class="btn ghost sm" onclick="hide(\'skuNewCard\')">' + escapeHtml(t('sku.cancel')) + '</button></div>' +
+      '<div class="box" id="skuNMsg" hidden></div>';
+    skuNCatChange();
+  }
+
+  function skuNCatChange() {
+    const cat = el('skuNCat').value, subs = (CONFIG && CONFIG.tree[cat]) || [];
+    el('skuNSub').innerHTML = subs.map(function (x) { return '<option>' + escapeHtml(x) + '</option>'; }).join('');
+    skuNSubChange();
+  }
+
+  function skuNSubChange() {
+    el('skuNVarWrap').hidden = !needsVariant(el('skuNSub').value);
+  }
+
+  function skuNewSave() {
+    const d = {
+      cat: el('skuNCat').value, sub: el('skuNSub').value, name: el('skuNName').value.trim(),
+      variant: el('skuNVar').value.trim(), event: el('skuNEvent').value.trim(), unit: el('skuNUnit').value,
+      team: el('skuNTeam').value, pic: el('skuNPic').value
+    };
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) { showBox('skuNMsg', escapeHtml((res && res.message) || t('msg.error')), 'err'); return; }
+        toast(res.existing ? t('sku.exists', { sku: res.sku }) : t('sku.created', { sku: res.sku }));
+        hide('skuNewCard'); skuLoad(); reloadData();
+      })
+      .withFailureHandler(function (e) { showBox('skuNMsg', t('msg.error') + ': ' + escapeHtml(e.message || e), 'err'); })
+      .skuCreate(d);
+  }
+
+  /* ── sửa SKU ── */
+  function skuEditOpen(code) {
+    const r = SK.rows.filter(function (x) { return x.sku === code; })[0];
+    if (!r) return;
+    hide('skuNewCard');
+    SK.editing = code;
+    const c = el('skuEditCard');
+    c.hidden = false;
+    c.innerHTML =
+      '<h2>' + escapeHtml(t('sku.editTitle')) + ' · <span class="mono">' + escapeHtml(r.sku) + '</span></h2>' +
+      '<p class="hint" style="margin:0 0 10px">' + escapeHtml(r.name + (r.variant ? ' · ' + r.variant : '')) + ' — ' + escapeHtml(t('sku.identityFixed')) + '</p>' +
+      '<div class="grid">' +
+        '<div class="field w-md"><label>' + escapeHtml(t('sku.team')) + '</label><select id="skuETeam">' + skuTeamOptions(r.team, false, true) + '</select></div>' +
+        '<div class="field"><label>' + escapeHtml(t('sku.pic')) + '</label><select id="skuEPic">' + skuPicOptions(r.pic, true) + '</select></div>' +
+        '<div class="field"><label>' + escapeHtml(t('sku.note')) + '</label><input type="text" id="skuENote" maxlength="200" value="' + escapeHtml(r.note) + '"></div>' +
+        '<label class="chk" style="display:flex;gap:8px;align-items:center;height:40px"><input type="checkbox" id="skuEActive"' + (r.active ? ' checked' : '') + '> <span>' + escapeHtml(t('sku.activeChk')) + '</span></label>' +
+      '</div>' +
+      '<div class="actions"><button class="btn sm" onclick="skuEditSave()">' + escapeHtml(t('sku.save')) + '</button>' +
+      '<button class="btn ghost sm" onclick="hide(\'skuEditCard\')">' + escapeHtml(t('sku.cancel')) + '</button></div>' +
+      '<div class="box" id="skuEMsg" hidden></div>';
+    c.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function skuEditSave() {
+    const patch = { team: el('skuETeam').value, pic: el('skuEPic').value, note: el('skuENote').value, active: el('skuEActive').checked };
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) { showBox('skuEMsg', escapeHtml((res && res.message) || t('msg.error')), 'err'); return; }
+        toast(t('sku.updated'));
+        hide('skuEditCard'); skuLoad(); reloadData();
+      })
+      .withFailureHandler(function (e) { showBox('skuEMsg', t('msg.error') + ': ' + escapeHtml(e.message || e), 'err'); })
+      .skuUpdate(SK.editing, patch);
+  }
+
+  skuBuild();       // dựng sẵn để goto('sku') tìm thấy #page-sku
+</script>

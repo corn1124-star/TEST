@@ -1,0 +1,735 @@
+<!-- Script kiểm kê. Phải nạp SAU I18n.html (dùng I18N). Phần giao diện: StocktakeView.html -->
+<script>
+  /* ══════════════════════════════════════════════════════════════
+     KIỂM KÊ — CLIENT
+     Luồng: tạo đợt -> đếm ngoài kho -> NHẬP số đếm (hệ thống so ngay: khớp / dư / thiếu)
+            -> người đếm XÁC NHẬN: hiệu chỉnh hay không.
+     Gọi server (Stocktake.gs, chỉ admin): stocktakeMeta · List · Get · Create ·
+                                            SaveCounts · Confirm · Cancel
+     TỐC ĐỘ: bảng chỉ vẽ 100 dòng/trang; gõ số chỉ cập nhật đúng 1 dòng + ô thống kê.
+     ══════════════════════════════════════════════════════════════ */
+
+  (function () {
+    const vi = {
+      'nav.stocktake':'Kiểm kê', 'stk.title':'Kiểm kê',
+      'stk.new':'Tạo đợt kiểm kê', 'stk.create':'Tạo đợt',
+      'stk.name':'Tên đợt', 'stk.team':'Team', 'stk.note':'Ghi chú',
+      'stk.allTeams':'Tất cả team', 'stk.allCats':'Mọi nhóm hàng', 'stk.allLocs':'Mọi địa điểm',
+      'stk.newHint':'Hệ thống chụp tồn hiện tại và liệt kê mã theo vị trí kệ. Sau khi đếm thực tế, bạn nhập số vào đây để so sánh.',
+      'stk.confirm':'Xác nhận kết quả', 'stk.cancel':'Huỷ đợt',
+      'stk.paste':'Dán số liệu từ Excel', 'stk.pasteApply':'Áp dụng',
+      'stk.pasteHint':'Mỗi dòng: Asset Code, rồi số thực tế (cách nhau bằng Tab, dấu phẩy hoặc chấm phẩy). Có thể dán thẳng 2 cột từ Excel.',
+      'stk.sheetOut':'Xuất phiếu đếm', 'stk.resultOut':'Xuất kết quả',
+      'stk.searchPh':'Tìm mã, tên hàng, vị trí…',
+      'stk.empty':'Chưa có đợt kiểm kê nào.', 'stk.noRows':'Không có dòng nào.',
+      'stk.step.COUNTING':'Đang đếm', 'stk.step.CLOSED':'Đã xác nhận', 'stk.step.CANCELLED':'Đã huỷ',
+      'stk.res.MATCH':'Khớp', 'stk.res.OVER':'Dư', 'stk.res.SHORT':'Thiếu',
+      'stk.st.PENDING':'Chưa nhập', 'stk.st.COUNTED':'Đã nhập', 'stk.st.ADJUSTED':'Đã hiệu chỉnh', 'stk.st.KEPT':'Giữ sổ sách',
+      'stk.dec.MATCHED':'Khớp hết', 'stk.dec.ADJUSTED':'Đã hiệu chỉnh', 'stk.dec.PARTIAL':'Hiệu chỉnh một phần', 'stk.dec.KEPT':'Không hiệu chỉnh',
+      'stk.f.all':'Tất cả', 'stk.f.pending':'Chưa nhập', 'stk.f.match':'Khớp', 'stk.f.over':'Dư', 'stk.f.short':'Thiếu',
+      'stk.k.value':'Chênh lệch giá trị', 'stk.k.accuracy':'Độ chính xác',
+      'stk.c.bin':'Vị trí', 'stk.c.item':'Mặt hàng', 'stk.c.sys':'Hệ thống', 'stk.c.counted':'Thực tế',
+      'stk.c.var':'Chênh lệch', 'stk.c.result':'Kết quả', 'stk.c.note':'Ghi chú', 'stk.c.date':'Ngày tạo',
+      'stk.c.progress':'Tiến độ', 'stk.c.status':'Trạng thái', 'stk.nCounted':'đã đếm',
+      'stk.save':'Lưu ({n})', 'stk.saved':'Đã lưu.',
+      'stk.nowQty':'Hệ thống hiện: {n}',
+      'stk.confirmTitle':'Xác nhận kết quả kiểm kê',
+      'stk.cfSummary':'Khớp {m} · Dư {o} · Thiếu {s} · Chênh lệch giá trị {v} VND',
+      'stk.cfPending':'Còn {n} mã chưa nhập số đếm — các mã này sẽ không bị hiệu chỉnh.',
+      'stk.cfAllMatch':'Tất cả các mã đã nhập đều khớp. Không có gì cần hiệu chỉnh.',
+      'stk.cfPick':'Chọn dòng cần hiệu chỉnh tồn kho theo số thực tế:',
+      'stk.cfAdjust':'Hiệu chỉnh {n} dòng đã chọn', 'stk.cfKeep':'Không hiệu chỉnh — chỉ lưu kết quả',
+      'stk.cfClose':'Xác nhận & đóng đợt', 'stk.cfBack':'Quay lại',
+      'stk.cfMoved':'Đã nhập/xuất sau lúc đếm',
+      'stk.cfNote':'Hiệu chỉnh ghi thêm vào Database dòng Nhập (dư) hoặc Xuất (thiếu), PO "KK:…". Không hoàn tác được.',
+      'stk.confirmCancel':'Huỷ đợt kiểm kê này?', 'stk.cancelReason':'Lý do huỷ:',
+      'stk.unsaved':'Bạn có số đếm chưa lưu. Bỏ các thay đổi này?',
+      'stk.pasteDone':'Đã nhận {ok} dòng. Bỏ qua {skip} dòng (không có trong đợt hoặc không phải số).',
+      'stk.by':'tạo bởi', 'stk.page':'{a}–{b} / {n}',
+      'stk.sub':'Đếm thực tế theo từng đợt, so với hệ thống rồi quyết định điều chỉnh',
+      'stk.blind':'Đếm mù', 'stk.blindHint':'Ẩn số hệ thống và chênh lệch của mỗi dòng cho đến khi số đếm của dòng đó được lưu',
+      'stk.blindHidden':'Ẩn khi đếm mù — hiện sau khi lưu số đếm',
+      'stk.cancelBody':'Đợt chuyển sang "Đã huỷ" và không đếm tiếp được. Tồn kho không bị thay đổi.',
+      'stk.unsavedTitle':'Số đếm chưa lưu', 'stk.discard':'Bỏ thay đổi',
+      'stk.blindExportNote':'Đang đếm mù: các dòng chưa lưu được ẩn khỏi file'
+    };
+    const en = {
+      'nav.stocktake':'Stocktake', 'stk.title':'Stocktake',
+      'stk.new':'New stocktake', 'stk.create':'Create',
+      'stk.name':'Name', 'stk.team':'Team', 'stk.note':'Note',
+      'stk.allTeams':'All teams', 'stk.allCats':'All categories', 'stk.allLocs':'All locations',
+      'stk.newHint':'The current stock is snapshotted and items are listed in shelf order. After counting, enter the numbers here to compare.',
+      'stk.confirm':'Confirm result', 'stk.cancel':'Cancel count',
+      'stk.paste':'Paste from Excel', 'stk.pasteApply':'Apply',
+      'stk.pasteHint':'One item per line: Asset Code, then the counted quantity (Tab, comma or semicolon separated). You can paste two columns straight from Excel.',
+      'stk.sheetOut':'Export count sheet', 'stk.resultOut':'Export result',
+      'stk.searchPh':'Search code, name, bin…',
+      'stk.empty':'No stocktakes yet.', 'stk.noRows':'No rows.',
+      'stk.step.COUNTING':'Counting', 'stk.step.CLOSED':'Confirmed', 'stk.step.CANCELLED':'Cancelled',
+      'stk.res.MATCH':'Match', 'stk.res.OVER':'Over', 'stk.res.SHORT':'Short',
+      'stk.st.PENDING':'Not entered', 'stk.st.COUNTED':'Entered', 'stk.st.ADJUSTED':'Adjusted', 'stk.st.KEPT':'Kept as is',
+      'stk.dec.MATCHED':'All matched', 'stk.dec.ADJUSTED':'Adjusted', 'stk.dec.PARTIAL':'Partly adjusted', 'stk.dec.KEPT':'Not adjusted',
+      'stk.f.all':'All', 'stk.f.pending':'Not entered', 'stk.f.match':'Match', 'stk.f.over':'Over', 'stk.f.short':'Short',
+      'stk.k.value':'Value variance', 'stk.k.accuracy':'Accuracy',
+      'stk.c.bin':'Bin', 'stk.c.item':'Item', 'stk.c.sys':'System', 'stk.c.counted':'Counted',
+      'stk.c.var':'Variance', 'stk.c.result':'Result', 'stk.c.note':'Note', 'stk.c.date':'Created',
+      'stk.c.progress':'Progress', 'stk.c.status':'Status', 'stk.nCounted':'counted',
+      'stk.save':'Save ({n})', 'stk.saved':'Saved.',
+      'stk.nowQty':'System now: {n}',
+      'stk.confirmTitle':'Confirm stocktake result',
+      'stk.cfSummary':'Match {m} · Over {o} · Short {s} · Value variance {v} VND',
+      'stk.cfPending':'{n} items have no count yet — they will not be adjusted.',
+      'stk.cfAllMatch':'Every counted item matches. Nothing to adjust.',
+      'stk.cfPick':'Pick the lines whose stock should be adjusted to the counted quantity:',
+      'stk.cfAdjust':'Adjust {n} selected lines', 'stk.cfKeep':'Do not adjust — just save the result',
+      'stk.cfClose':'Confirm & close', 'stk.cfBack':'Back',
+      'stk.cfMoved':'Moved after counting',
+      'stk.cfNote':'Adjustments add Import (over) or Export (short) rows to the Database, PO "KK:…". This cannot be undone.',
+      'stk.confirmCancel':'Cancel this stocktake?', 'stk.cancelReason':'Reason:',
+      'stk.unsaved':'You have unsaved counts. Discard them?',
+      'stk.pasteDone':'Received {ok} rows. Skipped {skip} (not in this count or not a number).',
+      'stk.by':'created by', 'stk.page':'{a}–{b} / {n}',
+      'stk.sub':'Count stock in rounds, compare with the system, then decide whether to adjust',
+      'stk.blind':'Blind count', 'stk.blindHint':'Hide the system quantity and variance of each line until its count is saved',
+      'stk.blindHidden':'Hidden in blind count — shown once the count is saved',
+      'stk.cancelBody':'The count moves to "Cancelled" and cannot be continued. Stock is not changed.',
+      'stk.unsavedTitle':'Unsaved counts', 'stk.discard':'Discard changes',
+      'stk.blindExportNote':'Blind count is on: lines without a saved count are hidden in the file'
+    };
+    Object.assign(I18N.vi, vi);
+    Object.assign(I18N.en, en);
+  })();
+
+  const STK_PAGE_SIZE = 100;
+  let STK_META = null;       // { teams, categories, locations }
+  let STK_LIST = [];
+  let STK_CUR  = null;       // { session, lines }
+  let STK_DIRTY = {};        // { code: { qty, note } } — chưa lưu
+  let STK_FILTER = 'all';
+  let STK_Q = '';
+  let STK_PAGE = 0;
+  let STK_BY = {};           // code -> line (tra nhanh)
+  let STK_BUSY = false;
+  let STK_RAF = 0;
+  let STK_BLIND = true;      // đếm mù: ẩn số hệ thống + chênh lệch cho đến khi dòng được lưu số đếm (mặc định bật)
+  try { STK_BLIND = localStorage.getItem('gim_stk_blind') !== '0'; } catch (e) {}
+  const STK_TRAPS = {};      // id modal -> hàm gỡ bẫy focus
+
+  function stkRun(name, args, ok) {
+    if (STK_BUSY) return;
+    STK_BUSY = true;
+    const r = google.script.run
+      .withSuccessHandler(function (res) {
+        STK_BUSY = false;
+        if (!res || res.ok === false) { toast((res && res.message) || t('msg.error'), 'err'); return; }
+        ok(res);
+      })
+      .withFailureHandler(function (e) {
+        STK_BUSY = false;
+        toast(t('msg.error') + ': ' + (e.message || e), 'err');
+      });
+    r[name].apply(r, args);
+  }
+
+  function stkSay(msg, cls) { toast(msg, cls === 'err' ? 'err' : cls === 'info' ? 'info' : 'ok'); }
+  function stkBadge(text, cls) { return '<span class="badge ' + cls + '">' + escapeHtml(text) + '</span>'; }
+
+  const STK_RES_CLS = { MATCH:'ok', OVER:'warn', SHORT:'danger' };
+  const STK_ST_CLS = { PENDING:'neutral', COUNTED:'ok', ADJUSTED:'in', KEPT:'neutral' };
+  const STK_DEC_CLS = { MATCHED:'ok', ADJUSTED:'in', PARTIAL:'warn', KEPT:'neutral' };
+
+  /* ── Vào trang: 1 lệnh gọi server (danh sách đợt) ── */
+  function stkOnEnter() { if (!STK_CUR) stkLoadList(); }
+
+  /** Khung chờ khi đang tải: người dùng thấy ngay bố cục thay vì trang trống. */
+  function stkSkeleton() {
+    const table = el('stkListTable');
+    table.innerHTML = '';
+    table.appendChild(headRow(['stk.c.item', 'stk.c.date', 'stk.c.status', 'stk.c.result']));
+    const tb = document.createElement('tbody');
+    let h = '';
+    for (let i = 0; i < 4; i++) h += '<tr class="skel"><td><i></i></td><td><i></i></td><td><i></i></td><td><i></i></td></tr>';
+    tb.innerHTML = h;
+    table.appendChild(tb);
+  }
+
+  function stkLoadList() {
+    stkSkeleton();
+    stkRun('stocktakeList', [], function (res) {
+      STK_LIST = res.sessions || [];
+      stkRenderList();
+    });
+  }
+
+  /* Danh sách đợt: trạng thái là các bước (Đang đếm, Đã xác nhận), bước hiện tại đậm; kết quả là biểu tượng + số */
+  function stkSteps(s) {
+    const sm = s.summary || {};
+    const li = function (cls, ico, text) { return '<li class="' + cls + '">' + (ico === 'dot' ? '<i class="stk-dot" aria-hidden="true"></i>' : icon(ico)) + '<span>' + escapeHtml(text) + '</span></li>'; };
+    if (s.status === 'CANCELLED') return '<ol class="stk-steps"><li class="bad">' + icon('x') + '<span>' + escapeHtml(t('stk.step.CANCELLED')) + '</span></li></ol>';
+    const closed = s.status === 'CLOSED';
+    const second = closed && s.decision ? t('stk.dec.' + s.decision) : t('stk.step.CLOSED');
+    return '<ol class="stk-steps">' +
+      (closed ? li('done', 'check', t('stk.step.COUNTING')) : li('now', 'clock', t('stk.step.COUNTING'))) +
+      (closed ? li('now ok', 'check', second) : li('todo', 'dot', second)) +
+      '</ol>' + (sm.total ? '<div class="stk-prog-n"><b>' + (sm.counted || 0) + '</b> / ' + sm.total + ' ' + escapeHtml(t('stk.nCounted')) + '</div>' : '');
+  }
+  function stkResult(sm) {
+    if (sm.matched === undefined) return '<span class="stk-r none">—</span>';
+    const one = function (n, cls, ico, key) {
+      return '<span class="stk-r ' + (n ? cls : 'none') + '" title="' + escapeHtml(t(key)) + '">' + icon(ico) + '<span class="visually-hidden">' + escapeHtml(t(key)) + ' </span>' + n + '</span>';
+    };
+    return one(sm.matched, 'ok', 'check', 'stk.f.match') + one(sm.over, 'warn', 'arrow-up', 'stk.f.over') + one(sm.short, 'bad', 'arrow-down', 'stk.f.short');
+  }
+
+  function stkRenderList() {
+    const table = el('stkListTable');
+    table.innerHTML = '';
+    table.appendChild(headRow(['stk.c.item', 'stk.c.date', 'stk.c.status', 'stk.c.result']));
+
+    const tbody = document.createElement('tbody');
+    if (!STK_LIST.length) {
+      tbody.appendChild(emptyRow(4, t('stk.empty'), { label: t('stk.new'), onclick: 'stkToggleCreate()' }));
+    } else {
+      let html = '';
+      STK_LIST.forEach(function (s, n) {
+        const sm = s.summary || {};
+        const scope = [s.team === 'ALL' ? t('stk.allTeams') : s.team, s.cat, s.loc].filter(Boolean).join(' · ');
+
+        html += '<tr class="stk-row-click" tabindex="0" role="button" data-n="' + n + '">' +
+          '<td class="wrap"><b>' + escapeHtml(s.name) + '</b>' +
+            '<div class="cell-sub mono">' + escapeHtml(s.id) + '</div>' +
+            '<div class="cell-sub">' + escapeHtml(scope) + '</div></td>' +
+          '<td>' + escapeHtml(s.createdAt) + '<div class="cell-sub">' + escapeHtml(s.createdBy) + '</div></td>' +
+          '<td class="stk-flow">' + stkSteps(s) + '</td>' +
+          '<td class="stk-res">' + stkResult(sm) + '</td></tr>';
+      });
+      tbody.innerHTML = html;
+    }
+    table.appendChild(tbody);
+  }
+
+  document.addEventListener('click', function (ev) {
+    const tr = ev.target && ev.target.closest && ev.target.closest('#stkListTable tr[data-n]');
+    if (tr) stkOpen(STK_LIST[Number(tr.getAttribute('data-n'))].id);
+  });
+
+  /* Enter / Space mở đợt khi hàng đang được focus (không trùng với phím trong ô nhập) */
+  document.addEventListener('keydown', function (ev) {
+    if ((ev.key !== 'Enter' && ev.key !== ' ') || ev.defaultPrevented) return;
+    const tr = ev.target && ev.target.matches && ev.target.matches('#stkListTable tr[data-n]') ? ev.target : null;
+    if (!tr) return;
+    ev.preventDefault();
+    stkOpen(STK_LIST[Number(tr.getAttribute('data-n'))].id);
+  });
+
+  /* ── Tạo đợt (tải danh mục lần đầu khi mở form, không tải lúc vào trang) ── */
+  function stkToggleCreate() {
+    const c = el('stkCreateCard');
+    if (!c.hidden) { c.hidden = true; return; }
+
+    function open() { c.hidden = false; el('stkName').focus(); }
+    if (STK_META) { open(); return; }
+
+    stkRun('stocktakeMeta', [], function (res) {
+      STK_META = res;
+      fill('stkTeam', res.teams, t('stk.allTeams'));
+      fill('stkCat', res.categories, t('stk.allCats'));
+      fill('stkLoc', res.locations, t('stk.allLocs'));
+      open();
+    });
+  }
+
+  function stkCreate() {
+    const opts = { name: el('stkName').value, team: el('stkTeam').value || 'ALL',
+                   cat: el('stkCat').value, loc: el('stkLoc').value, note: el('stkNote').value };
+    stkRun('stocktakeCreate', [opts], function (res) {
+      stkSay(res.message);
+      el('stkCreateCard').hidden = true;
+      el('stkName').value = ''; el('stkNote').value = '';
+      stkOpen(res.id);
+    });
+  }
+
+  /* ── Mở đợt ── */
+  function stkSetCur(res) {
+    STK_CUR = res;
+    STK_BY = {};
+    res.lines.forEach(function (l) { STK_BY[l.code] = l; });
+  }
+
+  function stkOpen(id) {
+    STK_DIRTY = {}; STK_FILTER = 'all'; STK_Q = ''; STK_PAGE = 0;
+    el('stkSearch').value = '';
+    stkRun('stocktakeGet', [id], function (res) {
+      stkSetCur(res);
+      hide('stkListView'); show('stkDetailView');
+      stkRenderAll();
+    });
+  }
+
+  function stkReload() {
+    stkRun('stocktakeGet', [STK_CUR.session.id], function (res) { stkSetCur(res); stkRenderAll(); });
+  }
+
+  /** Đóng modal Dán/Xác nhận và gỡ bẫy focus. Gọi khi rời trang Kiểm kê bằng bất cứ đường nào (Core.goto có thể gọi trước khi đổi trang). */
+  function stkCloseModals() {
+    ['stkPasteModal', 'stkConfirmModal'].forEach(function (id) {
+      const m = el(id);
+      if (m && (!m.hidden || STK_TRAPS[id])) stkModalClose(id);
+    });
+  }
+
+  /* Trang Kiểm kê mất .active (Back, đổi hash, bấm tab...) => đóng modal để không còn bẫy Tab mồ côi */
+  (function () {
+    const sec = document.getElementById('page-stocktake');
+    if (!sec || typeof MutationObserver === 'undefined') return;
+    new MutationObserver(function () { if (!sec.classList.contains('active')) stkCloseModals(); })
+      .observe(sec, { attributes: true, attributeFilter: ['class'] });
+  })();
+
+  function stkLeave() {
+    stkCloseModals();
+    STK_CUR = null; STK_DIRTY = {};
+    hide('stkDetailView'); show('stkListView');
+    stkLoadList();
+  }
+
+  function stkBack() {
+    if (!stkHasUnsaved()) { stkLeave(); return; }
+    uiDialog({ title: t('stk.unsavedTitle'), body: t('stk.unsaved'), okLabel: t('stk.discard'), danger: true }, stkLeave);
+  }
+
+  function stkIsOpen() { return STK_CUR && STK_CUR.session.status === 'COUNTING'; }
+
+  /** Còn số đếm / ghi chú chưa lưu? Core.goto / điều hướng tab nên gọi trước khi rời trang Kiểm kê. */
+  function stkHasUnsaved() { return !!(STK_CUR && Object.keys(STK_DIRTY).length); }
+
+  /** Đếm mù đang có hiệu lực: chỉ khi đợt đang đếm và người dùng bật. */
+  function stkBlindOn() { return !!(STK_BLIND && stkIsOpen()); }
+
+  /** Dòng đang bị che số hệ thống / kết quả: đếm mù và chưa có số đếm ĐÃ LƯU. */
+  function stkMasked(l) { return stkBlindOn() && l.counted === null; }
+
+  function stkToggleBlind() {
+    STK_BLIND = !STK_BLIND;
+    try { localStorage.setItem('gim_stk_blind', STK_BLIND ? '1' : '0'); } catch (e) {}
+    if (stkBlindOn() && STK_FILTER !== 'all' && STK_FILTER !== 'pending') STK_FILTER = 'all';   // bộ lọc Khớp/Dư/Thiếu không còn trong chế độ mù
+    STK_PAGE = 0;
+    stkUpdateBlindBtn();
+    stkRenderStats(); stkRenderTable();
+  }
+
+  function stkUpdateBlindBtn() {
+    const b = el('stkBlindBtn');
+    if (!b) return;
+    b.hidden = !stkIsOpen();
+    b.classList.toggle('on', !!STK_BLIND);
+    b.setAttribute('aria-pressed', STK_BLIND ? 'true' : 'false');
+  }
+
+  /* Giá trị hiệu lực của 1 dòng: số đã lưu + số đang gõ (chưa lưu). savedOnly = chỉ tính số đã lưu (thống kê khi đếm mù). */
+  function stkEff(l, savedOnly) {
+    const d = savedOnly ? null : STK_DIRTY[l.code];
+    let counted = l.counted;
+    if (d && d.qty !== undefined) counted = (d.qty === '' || isNaN(Number(d.qty))) ? null : Number(d.qty);
+
+    const base = l.counted !== null ? l.sysAtCount : l.sys;       // đã lưu: tồn lúc nhập; chưa: snapshot
+    const variance = counted === null ? null : counted - base;
+    return { counted: counted, variance: variance, valueVar: variance === null ? null : variance * l.price,
+             result: variance === null ? null : (variance === 0 ? 'MATCH' : variance > 0 ? 'OVER' : 'SHORT') };
+  }
+
+  function stkTotals(savedOnly) {
+    const s = { total: 0, counted: 0, pending: 0, match: 0, over: 0, short: 0, value: 0 };
+    STK_CUR.lines.forEach(function (l) {
+      const e = stkEff(l, savedOnly);
+      s.total++;
+      if (e.counted === null) { s.pending++; return; }
+      s.counted++;
+      if (e.result === 'MATCH') s.match++; else if (e.result === 'OVER') s.over++; else s.short++;
+      s.value += e.valueVar;
+    });
+    s.accuracy = s.counted ? Math.round(s.match / s.counted * 1000) / 10 : null;
+    return s;
+  }
+
+  /* ── Vẽ ── */
+  function stkRenderAll() {
+    const s = STK_CUR.session;
+    setText('stkDName', s.name);
+    setText('stkDMeta', s.id + ' · ' + t('stk.by') + ' ' + s.createdBy + ' · ' + s.createdAt);
+
+    const steps = [['COUNTING', ''], ['CLOSED', s.status === 'CLOSED' ? 'on' : '']];
+    el('stkSteps').innerHTML = s.status === 'CANCELLED'
+      ? '<span class="odoo-step bad">' + escapeHtml(t('stk.step.CANCELLED')) + '</span>'
+      : '<span class="odoo-step' + (s.status === 'COUNTING' ? ' on' : '') + '">' + escapeHtml(t('stk.step.COUNTING')) + '</span>' +
+        '<span class="odoo-step' + (s.status === 'CLOSED' ? ' on' : '') + '">' + escapeHtml(
+          s.status === 'CLOSED' && s.decision ? t('stk.dec.' + s.decision) : t('stk.step.CLOSED')) + '</span>';
+
+    const open = stkIsOpen();
+    el('stkConfirmBtn').hidden = !open;
+    el('stkPasteBtn').hidden = !open;
+    el('stkCancelBtn').hidden = !open;
+    el('stkSearch').parentNode.hidden = false;
+    if (stkBlindOn() && STK_FILTER !== 'all' && STK_FILTER !== 'pending') STK_FILTER = 'all';
+    stkUpdateBlindBtn();
+
+    stkRenderStats();
+    stkRenderTable();
+    stkUpdateSave();
+  }
+
+  function stkRenderStats() {
+    const blind = stkBlindOn();
+    const tt = stkTotals(blind);                    // đếm mù: chỉ tính số đã lưu, không bao giờ tính số đang gõ
+    function stat(key, label, value, cls) {
+      return '<button class="odoo-stat ' + (cls || '') + (STK_FILTER === key ? ' on' : '') + '" data-f="' + key + '">' +
+        '<span class="v">' + value + '</span><span class="l">' + escapeHtml(label) + '</span></button>';
+    }
+    if (blind) {
+      el('stkStats').innerHTML = stat('all', t('stk.f.all'), tt.counted + ' / ' + tt.total) + stat('pending', t('stk.f.pending'), tt.pending);
+      return;
+    }
+    el('stkStats').innerHTML =
+      stat('all', t('stk.f.all'), tt.counted + ' / ' + tt.total) +
+      stat('pending', t('stk.f.pending'), tt.pending) +
+      stat('match', t('stk.f.match'), tt.match, 'ok') +
+      stat('over', t('stk.f.over'), tt.over, 'warn') +
+      stat('short', t('stk.f.short'), tt.short, 'danger') +
+      '<div class="odoo-stat static"><span class="v">' + num(tt.value) + '</span><span class="l">' + escapeHtml(t('stk.k.value')) + '</span></div>' +
+      '<div class="odoo-stat static"><span class="v">' + (tt.accuracy === null ? '—' : tt.accuracy + '%') + '</span><span class="l">' + escapeHtml(t('stk.k.accuracy')) + '</span></div>';
+  }
+
+  document.addEventListener('click', function (ev) {
+    const b = ev.target && ev.target.closest && ev.target.closest('#stkStats .odoo-stat[data-f]');
+    if (!b) return;
+    STK_FILTER = b.getAttribute('data-f'); STK_PAGE = 0;
+    stkRenderStats(); stkRenderTable();
+  });
+
+  function stkMatches(l, q) {
+    if (q && (l.code + ' ' + l.name + ' ' + l.bin).toLowerCase().indexOf(q) === -1) return false;
+    if (STK_FILTER === 'all') return true;
+    const r = stkEff(l, stkBlindOn()).result;
+    if (STK_FILTER === 'pending') return r === null;
+    return r === STK_FILTER.toUpperCase();
+  }
+
+  function stkRowHtml(l, open) {
+    const e = stkEff(l), d = STK_DIRTY[l.code];
+    const code = escapeHtml(l.code);
+    const masked = stkMasked(l);
+    const cls = stkRowCls(e, masked);
+    const editable = open && l.status !== 'ADJUSTED' && l.status !== 'KEPT';
+
+    return '<tr class="' + cls + '" data-row="' + code + '">' +
+      '<td class="mono">' + escapeHtml(l.bin || '—') + '</td>' +
+      '<td class="wrap">' + escapeHtml(l.name) + '<div class="cell-sub mono">' + code + ' · ' + escapeHtml(l.unit) + '</div>' +
+        '<div class="cell-sub stk-binline">' + escapeHtml(l.bin || '—') + '</div></td>' +
+      (masked
+        ? '<td class="num" title="' + escapeHtml(t('stk.blindHidden')) + '">—</td>'
+        : '<td class="num">' + num(l.counted === null ? l.sys : l.sysAtCount) +
+          (l.moved ? '<div class="cell-sub"><svg aria-hidden="true" class="ico"><use href="#i-alert"></use></svg> ' + escapeHtml(t('stk.nowQty', { n: num(l.now) })) + '</div>' : '') + '</td>') +
+      '<td class="num">' + (editable
+        ? '<input type="number" min="0" step="1" inputmode="numeric" class="stk-q' + (d && d.qty !== undefined ? ' dirty' : '') +
+          '" data-act="qty" data-code="' + code + '" value="' + (e.counted === null ? '' : e.counted) + '">'
+        : (e.counted === null ? '—' : num(e.counted))) + '</td>' +
+      stkResultCells(e, masked) +
+      '<td>' + (editable
+        ? '<input type="text" class="stk-note" maxlength="200" data-act="note" data-code="' + code + '" value="' + escapeHtml(d && d.note !== undefined ? d.note : l.note) + '">'
+        : escapeHtml(l.note || '')) + '</td>' +
+      '<td>' + stkBadge(t('stk.st.' + l.status), STK_ST_CLS[l.status] || 'neutral') + '</td></tr>';
+  }
+
+  function stkRowCls(e, masked) {
+    if (masked) return '';
+    return e.result === 'OVER' ? 'stk-over' : e.result === 'SHORT' ? 'stk-short' : e.result === 'MATCH' ? 'stk-match' : '';
+  }
+
+  function stkResultCells(e, masked) {
+    if (masked || e.result === null) return '<td class="num">—</td><td>—</td>';
+    const v = e.variance;
+    // Nhãn kết quả có kèm số lệch (Dư +3 / Thiếu -2) để đọc được cả khi ẩn cột Chênh lệch trên điện thoại
+    const label = t('stk.res.' + e.result) + (v ? ' ' + (v > 0 ? '+' : '') + num(v) : '');
+    return '<td class="num"><span class="' + (v > 0 ? 'stk-pos' : v < 0 ? 'stk-neg' : '') + '">' + (v > 0 ? '+' : '') + num(v) + '</span></td>' +
+           '<td>' + stkBadge(label, STK_RES_CLS[e.result]) + '</td>';
+  }
+
+  function stkRenderTable() {
+    const open = stkIsOpen();
+    const q = STK_Q.trim().toLowerCase();
+    const rows = STK_CUR.lines.filter(function (l) { return stkMatches(l, q); });
+
+    const pages = Math.max(1, Math.ceil(rows.length / STK_PAGE_SIZE));
+    if (STK_PAGE >= pages) STK_PAGE = pages - 1;
+    const from = STK_PAGE * STK_PAGE_SIZE, to = Math.min(rows.length, from + STK_PAGE_SIZE);
+
+    const table = el('stkTable');
+    table.innerHTML = '';
+    table.appendChild(headRow(['stk.c.bin', 'stk.c.item', 'stk.c.sys', 'stk.c.counted', 'stk.c.var', 'stk.c.result', 'stk.c.note', 'stk.c.status']));
+
+    const tbody = document.createElement('tbody');
+    let html = '';
+    for (let i = from; i < to; i++) html += stkRowHtml(rows[i], open);
+    tbody.innerHTML = html;
+    if (!rows.length) tbody.appendChild(emptyRow(8, t('stk.noRows')));
+    table.appendChild(tbody);
+
+    el('stkPager').innerHTML = rows.length > STK_PAGE_SIZE
+      ? '<button class="btn ghost sm" ' + (STK_PAGE ? '' : 'disabled') + ' onclick="stkGoPage(-1)">‹</button>' +
+        '<span>' + escapeHtml(t('stk.page', { a: from + 1, b: to, n: rows.length })) + '</span>' +
+        '<button class="btn ghost sm" ' + (STK_PAGE < pages - 1 ? '' : 'disabled') + ' onclick="stkGoPage(1)">›</button>'
+      : '';
+  }
+
+  function stkGoPage(d) { STK_PAGE += d; stkRenderTable(); el('stkTable').scrollIntoView({ block: 'start' }); }
+
+  let STK_SEARCH_T = 0;
+  function stkOnSearch() {
+    clearTimeout(STK_SEARCH_T);
+    STK_SEARCH_T = setTimeout(function () { STK_Q = el('stkSearch').value; STK_PAGE = 0; stkRenderTable(); }, 150);
+  }
+
+  /* ── Nhập số đếm: cập nhật đúng 1 dòng + ô thống kê (không vẽ lại bảng) ── */
+  document.addEventListener('input', function (ev) {
+    const a = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-act');
+    if (a !== 'qty' && a !== 'note') return;
+    const code = ev.target.getAttribute('data-code');
+    const d = STK_DIRTY[code] || (STK_DIRTY[code] = {});
+
+    if (a === 'note') { d.note = ev.target.value; stkUpdateSave(); return; }
+
+    d.qty = ev.target.value;
+    ev.target.classList.add('dirty');
+
+    const tr = ev.target.closest('tr'), l = STK_BY[code];
+    if (tr && l) {
+      const e = stkEff(l);
+      const masked = stkMasked(l);                                 // đếm mù: dòng chưa lưu vẫn giữ '—'
+      tr.className = stkRowCls(e, masked);
+      const cells = tr.children;                                   // 4 = chênh lệch, 5 = kết quả
+      const tmp = document.createElement('tr');
+      tmp.innerHTML = stkResultCells(e, masked);
+      cells[4].innerHTML = tmp.children[0].innerHTML;
+      cells[5].innerHTML = tmp.children[1].innerHTML;
+    }
+
+    cancelAnimationFrame(STK_RAF);
+    STK_RAF = requestAnimationFrame(function () { stkRenderStats(); stkUpdateSave(); });
+  });
+
+  /* Enter ở ô số đếm -> nhảy ô kế tiếp */
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Enter' || !ev.target.getAttribute || ev.target.getAttribute('data-act') !== 'qty') return;
+    ev.preventDefault();
+    const all = Array.prototype.slice.call(document.querySelectorAll('#stkTable input[data-act="qty"]'));
+    const nxt = all[all.indexOf(ev.target) + 1];
+    if (nxt) { nxt.focus(); nxt.select(); }
+  });
+
+  function stkUpdateSave() {
+    const n = Object.keys(STK_DIRTY).length;
+    const b = el('stkSaveBtn');
+    b.hidden = !(n && stkIsOpen());
+    b.textContent = t('stk.save', { n: n });
+  }
+
+  /* ── Lưu ── */
+  function stkDirtyEntries() {
+    return Object.keys(STK_DIRTY).map(function (code) {
+      const d = STK_DIRTY[code], l = STK_BY[code], e = { code: code };
+      e.qty = d.qty !== undefined ? d.qty : (l && l.counted !== null ? l.counted : '');   // chỉ sửa ghi chú: giữ số đếm
+      if (d.note !== undefined) e.note = d.note;
+      return e;
+    });
+  }
+
+  function stkSaveCounts(after) {
+    const entries = stkDirtyEntries();
+    if (!entries.length) { if (after) after(); return; }
+
+    stkRun('stocktakeSaveCounts', [STK_CUR.session.id, entries], function (res) {
+      STK_DIRTY = {};
+      stkRun('stocktakeGet', [STK_CUR.session.id], function (r2) {
+        stkSetCur(r2);
+        stkRenderAll();
+        stkSay(t('stk.saved') + ' (' + res.saved + ')');
+        if (after) after();
+      });
+    });
+  }
+
+  /* ── Dán từ Excel ── */
+  /* Mở / đóng modal: bẫy focus (trapFocus của Dialog.html), trả focus về nút đã bấm, Esc để đóng */
+  function stkModalOpen(id, focusEl) {
+    const m = el(id);
+    if (!STK_TRAPS[id] && typeof trapFocus === 'function') STK_TRAPS[id] = trapFocus(m);
+    m.hidden = false;
+    if (focusEl) focusEl.focus();
+  }
+
+  function stkModalClose(id) {
+    el(id).hidden = true;
+    const release = STK_TRAPS[id];
+    STK_TRAPS[id] = null;
+    if (release) release();
+  }
+
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Escape' || document.getElementById('uiDlg')) return;
+    if (!el('stkConfirmModal').hidden) { ev.preventDefault(); stkCloseConfirm(); }
+    else if (!el('stkPasteModal').hidden) { ev.preventDefault(); stkClosePaste(); }
+  });
+
+  function stkOpenPaste() { el('stkPasteText').value = ''; stkModalOpen('stkPasteModal', el('stkPasteText')); }
+  function stkClosePaste() { stkModalClose('stkPasteModal'); }
+
+  function stkApplyPaste() {
+    let ok = 0, skip = 0;
+    el('stkPasteText').value.split(/\r?\n/).forEach(function (line) {
+      const p = line.split(/[\t,;]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+      if (p.length < 2) { if (p.length) skip++; return; }
+      const code = p[0].toUpperCase(), qty = Number(String(p[1]).replace(/\./g, '').replace(',', '.'));
+      if (!STK_BY[code] || !isFinite(qty) || qty < 0 || qty !== Math.floor(qty) || STK_BY[code].status === 'ADJUSTED' || STK_BY[code].status === 'KEPT') { skip++; return; }
+      (STK_DIRTY[code] = STK_DIRTY[code] || {}).qty = String(qty);
+      ok++;
+    });
+    stkClosePaste();
+    stkRenderStats(); stkRenderTable(); stkUpdateSave();
+    stkSay(t('stk.pasteDone', { ok: ok, skip: skip }), skip ? 'info' : 'ok');
+  }
+
+  /* ── Xác nhận: hiệu chỉnh hay không ── */
+  function stkOpenConfirm() {
+    if (!stkIsOpen()) return;
+    stkSaveCounts(stkShowConfirm);                       // lưu số đang gõ rồi mới hỏi
+  }
+
+  function stkShowConfirm() {
+    const tt = stkTotals();
+    if (!tt.counted) { stkSay(t('stk.noRows'), 'err'); return; }
+
+    const diff = STK_CUR.lines.filter(function (l) { const r = stkEff(l).result; return r === 'OVER' || r === 'SHORT'; });
+    let body = '<p>' + escapeHtml(t('stk.cfSummary', { m: tt.match, o: tt.over, s: tt.short, v: num(tt.value) })) + '</p>';
+    if (tt.pending) body += '<div class="box info">' + escapeHtml(t('stk.cfPending', { n: tt.pending })) + '</div>';
+
+    if (!diff.length) {
+      body += '<div class="box ok">' + escapeHtml(t('stk.cfAllMatch')) + '</div>';
+    } else {
+      body += '<p>' + escapeHtml(t('stk.cfPick')) + '</p><div class="table-wrap short"><table id="stkCfTable"><thead><tr>' +
+        '<th><input type="checkbox" id="stkCfAll" checked></th><th>' + escapeHtml(t('stk.c.item')) + '</th><th>' + escapeHtml(t('stk.c.sys')) +
+        '</th><th>' + escapeHtml(t('stk.c.counted')) + '</th><th>' + escapeHtml(t('stk.c.var')) + '</th></tr></thead><tbody>';
+      diff.forEach(function (l) {
+        const e = stkEff(l);
+        body += '<tr><td><input type="checkbox" class="stk-cf" data-code="' + escapeHtml(l.code) + '" checked></td>' +
+          '<td class="wrap">' + escapeHtml(l.name) + '<div class="cell-sub mono">' + escapeHtml(l.code) + '</div>' +
+            (l.moved ? '<div class="cell-sub"><svg aria-hidden="true" class="ico"><use href="#i-alert"></use></svg> ' + escapeHtml(t('stk.cfMoved')) + ' (' + escapeHtml(t('stk.nowQty', { n: num(l.now) })) + ')</div>' : '') + '</td>' +
+          '<td class="num">' + num(l.sysAtCount) + '</td><td class="num">' + num(e.counted) + '</td>' +
+          '<td class="num"><span class="' + (e.variance > 0 ? 'stk-pos' : 'stk-neg') + '">' + (e.variance > 0 ? '+' : '') + num(e.variance) + '</span></td></tr>';
+      });
+      body += '</tbody></table></div><p class="hint">' + escapeHtml(t('stk.cfNote')) + '</p>';
+    }
+    setHtml('stkConfirmBody', body);
+
+    const foot = el('stkConfirmFoot');
+    foot.innerHTML = '<button class="btn ghost" onclick="stkCloseConfirm()">' + escapeHtml(t('stk.cfBack')) + '</button>' +
+      (diff.length
+        ? '<button class="btn ghost" onclick="stkDoConfirm(false)">' + escapeHtml(t('stk.cfKeep')) + '</button>' +
+          '<button class="btn" id="stkCfGo" onclick="stkDoConfirm(true)"></button>'
+        : '<button class="btn" onclick="stkDoConfirm(false)">' + escapeHtml(t('stk.cfClose')) + '</button>');
+
+    stkModalOpen('stkConfirmModal', foot.querySelector('.btn'));      // focus vào "Quay lại" (nút an toàn), không phải nút hiệu chỉnh
+    stkCfCount();
+  }
+
+  function stkCloseConfirm() { stkModalClose('stkConfirmModal'); }
+
+  function stkCfChosen() {
+    return Array.prototype.map.call(document.querySelectorAll('#stkConfirmModal .stk-cf:checked'), function (c) { return c.getAttribute('data-code'); });
+  }
+
+  function stkCfCount() {
+    const go = el('stkCfGo');
+    if (go) { const n = stkCfChosen().length; go.textContent = t('stk.cfAdjust', { n: n }); go.disabled = !n; }
+  }
+
+  document.addEventListener('change', function (ev) {
+    const tg = ev.target;
+    if (!tg || !tg.closest || !tg.closest('#stkConfirmModal')) return;
+    if (tg.id === 'stkCfAll') {
+      Array.prototype.forEach.call(document.querySelectorAll('#stkConfirmModal .stk-cf'), function (c) { c.checked = tg.checked; });
+    }
+    stkCfCount();
+  });
+
+  function stkDoConfirm(adjust) {
+    const tt = stkTotals();
+    const opts = { adjust: adjust ? stkCfChosen() : 'NONE', allowPartial: tt.pending > 0 };
+    stkRun('stocktakeConfirm', [STK_CUR.session.id, opts], function (res) {
+      stkCloseConfirm();
+      stkSay(res.message);
+      stkRun('stocktakeGet', [STK_CUR.session.id], function (r2) {
+        stkSetCur(r2); stkRenderAll();
+        if (adjust && res.adjusted && typeof reloadData === 'function') reloadData();     // tồn kho đã đổi
+      });
+    });
+  }
+
+  /** Xóa hẳn cả đợt (mọi trạng thái). Server chặn nếu đợt đã ghi điều chỉnh vào sổ cái. */
+  function stkDelete() {
+    const s = STK_CUR.session;
+    uiDialog({ title: t('del.stkTitle'), body: t('del.stkBody', { name: s.name }), reason: 'optional', okLabel: t('del.ok'), danger: true }, function (reason) {
+      stkRun('stocktakeDelete', [s.id, reason], function (res) {
+        stkSay(res.message);
+        STK_DIRTY = {}; STK_CUR = null;
+        hide('stkDetailView'); show('stkListView');
+        stkLoadList();
+      });
+    });
+  }
+
+  function stkCancel() {
+    const id = STK_CUR.session.id;
+    uiDialog({ title: t('stk.confirmCancel'), body: t('stk.cancelBody'), reason: 'optional', okLabel: t('stk.cancel'), danger: true }, function (reason) {
+      stkRun('stocktakeCancel', [id, reason], function (res) {
+        stkSay(res.message);
+        STK_DIRTY = {}; stkLeave();
+      });
+    });
+  }
+
+  /* ── Xuất CSV: phiếu đếm (không hiện số hệ thống, để đếm độc lập) hoặc kết quả ── */
+  function stkExportCsv(withResult) {
+    if (!STK_CUR) return;
+    const head = withResult
+      ? ['Bin', 'Asset Code', 'Name', 'Unit', 'System', 'Counted', 'Variance', 'Result', 'Value', 'Status', 'Note']
+      : ['Bin', 'Asset Code', 'Name', 'Unit', 'Counted'];
+    let hidden = 0;
+    const rows = STK_CUR.lines.map(function (l) {
+      const e = stkEff(l);
+      if (!withResult) return [l.bin, l.code, l.name, l.unit, ''];
+      // Đếm mù: dòng chưa có số đếm ĐÃ LƯU bị che Hệ thống / Chênh lệch / Kết quả / Giá trị (giống giao diện; số gõ chưa lưu không làm lộ số hệ thống)
+      if (stkMasked(l)) {
+        hidden++;
+        return [l.bin, l.code, l.name, l.unit, '—', e.counted === null ? '' : e.counted, '—', '—', '—', l.status, l.note];
+      }
+      return [l.bin, l.code, l.name, l.unit, l.counted === null ? l.sys : l.sysAtCount, e.counted === null ? '' : e.counted,
+              e.variance === null ? '' : e.variance, e.result ? t('stk.res.' + e.result) : '', e.valueVar === null ? '' : e.valueVar, l.status, l.note];
+    });
+    const csv = [head].concat(rows).map(function (r) {
+      return r.map(function (c) { return '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\r\n');
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = STK_CUR.session.id + (withResult ? '-ketqua' : '-phieudem') + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    if (hidden) stkSay(t('stk.blindExportNote'), 'info');
+  }
+
+  /* Rời trang khi còn số chưa lưu */
+  window.addEventListener('beforeunload', function (ev) {
+    if (STK_CUR && Object.keys(STK_DIRTY).length) { ev.preventDefault(); ev.returnValue = ''; }
+  });
+</script>

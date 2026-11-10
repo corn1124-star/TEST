@@ -1,0 +1,47 @@
+<style>
+  /* Chế độ nhúng Google Sites: Sites lo menu, app chỉ hiện nội dung trang được chọn */
+  body.embed .topnav, body.embed .hd-brand { display:none; }
+  body.embed .header { justify-content:flex-end; }
+  @media (max-width:860px){ body.embed .content { padding-bottom:16px; } }
+</style>
+<script>
+  /* ============================================================
+     NHÚNG GOOGLE SITES — mở bằng ?page=<home|kho|history|stocktake|report|me|admin|sku|ticket>
+     window.SECWH_EMBED do server chèn (Web.js › withEmbedFlag_). Không có cờ này thì app chạy như cũ.
+     ============================================================ */
+  Object.assign(I18N.vi, { 'embed.open': 'Mở app trong tab mới (cấp quyền lần đầu)' });
+  Object.assign(I18N.en, { 'embed.open': 'Open the app in a new tab (grant access once)' });
+
+  const EMBED = window.SECWH_EMBED || null;
+
+  /* trang chỉ admin: staff được đưa về Trang chủ thay vì hiện cảnh báo ngay khi vào */
+  const EMBED_ADMIN_ONLY = { admin: 1, ticket: 1, stocktake: 1, sku: 1, history: 1 };
+
+  function embedStart() {
+    if (!EMBED) return;
+    document.body.classList.add('embed');
+
+    const page = EMBED.page;
+    if (!page || page === 'home') return;
+    goto(EMBED_ADMIN_ONLY[page] && !IS_ADMIN ? 'home' : page);
+  }
+
+  /* Trong iframe Sites, người dùng chưa cấp quyền OAuth sẽ không thấy hộp thoại cấp quyền,
+     nên màn hình lỗi có thêm liên kết mở app ở tab riêng để cấp quyền một lần. */
+  if (EMBED) {
+    const origLandError = landError;
+    landError = function (msg) {
+      origLandError(msg);
+      const box = el('landActions');
+      if (!box || el('embedOpen')) return;
+      const a = document.createElement('a');
+      a.id = 'embedOpen';
+      a.className = 'btn ghost';
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.href = EMBED.url;
+      a.textContent = t('embed.open');
+      box.appendChild(a);
+    };
+  }
+</script>

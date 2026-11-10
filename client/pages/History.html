@@ -1,0 +1,577 @@
+<script>
+  /* ══════════════════════════════════════════════════════════════
+     TRANG 3 — LỊCH SỬ GIAO DỊCH
+     ══════════════════════════════════════════════════════════════ */
+  Object.assign(I18N.vi, {
+    'hist.more':'Tải thêm {n}',
+    'hist.rangeBoth':'Khoảng ngày: <b>{from}</b> – <b>{to}</b>', 'hist.rangeFrom':'Từ ngày <b>{from}</b>',
+    'hist.rangeTo':'Đến ngày <b>{to}</b>', 'hist.rangeAll':'Tất cả thời gian',
+    'hist.allTime':'Xem tất cả thời gian',
+    'hist.capNote':'Đã đạt giới hạn {max} dòng. Hãy lọc hẹp hơn hoặc dùng Xuất CSV để lấy đủ.',
+    'edit.stockLine':'Tồn hiện tại <b>{cur}</b> → sau khi sửa <b>{next}</b> {unit}',
+    'edit.stockNeg':' · tồn sẽ ÂM',
+    'edit.confirmBody':'Lưu thay đổi cho giao dịch {info}?'
+  });
+  Object.assign(I18N.en, {
+    'hist.more':'Load {n} more',
+    'hist.rangeBoth':'Date range: <b>{from}</b> – <b>{to}</b>', 'hist.rangeFrom':'From <b>{from}</b>',
+    'hist.rangeTo':'Up to <b>{to}</b>', 'hist.rangeAll':'All time',
+    'hist.allTime':'Show all time',
+    'hist.capNote':'Reached the {max}-row limit. Narrow the filters or use Export CSV to get everything.',
+    'edit.stockLine':'Stock now <b>{cur}</b> → after edit <b>{next}</b> {unit}',
+    'edit.stockNeg':' · stock would go NEGATIVE',
+    'edit.confirmBody':'Save changes to transaction {info}?'
+  });
+
+  let H_FILTER = null;   // bộ lọc của lần tải gần nhất: xuất CSV dùng lại đúng bộ lọc này (không lấy theo ô nhập đã bị đổi sau đó)
+
+  /* Server (getTransactions) chưa có offset: "Tải thêm" = gọi lại với limit lớn hơn. */
+  const H_PAGE = 300;      // mỗi lần tải thêm bấy nhiêu dòng
+  const H_MAX  = 3000;     // trần an toàn; vượt thì chỉ dẫn lọc hẹp / xuất CSV
+  let H_LIMIT = H_PAGE;
+  let H_REQ = 0;           // số thứ tự yêu cầu: bỏ qua phản hồi cũ đến muộn
+  let H_LOADING = false;
+
+  function histFilter(limit) {
+    return {
+      username: el('hUser').value,          // staff gửi gì server cũng ép về mình
+      type: el('hType').value,
+      cat: el('hCat').value,
+      from: el('hFrom').value,
+      to: el('hTo').value,
+      keyword: el('hSearch').value,
+      limit: limit
+    };
+  }
+
+  /** Đổi bộ lọc -> về 300 dòng đầu. keepLimit=true (nạp lại sau khi ghi) giữ số dòng đã "Tải thêm". */
+  function loadHistory(keepLimit) {
+    if (keepLimit !== true) H_LIMIT = H_PAGE;
+    fetchHistory_();
+  }
+
+  function fetchHistory_() {
+    showWait('hInfo', 'hTable', 8);
+    H_FILTER = histFilter(H_LIMIT);
+    const req = ++H_REQ;
+    H_LOADING = true;
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (req !== H_REQ) return;              // đã có yêu cầu mới hơn
+        H_LOADING = false;
+        if (!res || !res.ok) {
+          showBox('hInfo', escapeHtml((res && res.message) || t('msg.error')), 'err');
+          return;
+        }
+        H_DATA = res;
+        renderHistory();
+      })
+      .withFailureHandler(function (e) {
+        if (req !== H_REQ) return;
+        H_LOADING = false;
+        showBox('hInfo', t('msg.error') + ': ' + escapeHtml(e.message || e), 'err');
+      })
+      .getTransactions(H_FILTER);
+  }
+
+  function loadMoreHistory() {
+    H_LIMIT = Math.min(H_LIMIT + H_PAGE, H_MAX);
+    fetchHistory_();
+  }
+
+  /** Vào trang lần đầu (gọi từ goto). Đang tải rồi (vd từ historyShowUser) thì không tải lại. */
+  function historyOnEnter() {
+    if (!H_DATA && !H_LOADING) loadHistory();
+  }
+
+  /** Xoá lọc = về mặc định của trang: 7 ngày gần nhất, không lọc gì khác. */
+  function clearHistFilter() {
+    el('hType').value = '';
+    el('hUser').value = '';
+    el('hCat').value = '';
+    el('hFrom').value = daysAgo(7);
+    el('hTo').value = today();
+    el('hSearch').value = '';
+    syncSearchClear('hSearch');
+    loadHistory();
+  }
+
+  /** Bỏ giới hạn ngày (giữ các bộ lọc khác). */
+  function histAllTime() {
+    el('hFrom').value = '';
+    el('hTo').value = '';
+    loadHistory();
+  }
+
+  /**
+   * Mở Lịch sử của 1 người dùng, MỌI thời gian (gọi từ danh sách người dùng).
+   * Tải đúng 1 lần: loadHistory chạy trước goto nên historyOnEnter thấy H_LOADING và bỏ qua.
+   */
+  function historyShowUser(username) {
+    if (!pageAllowed_('history')) { toast(t('msg.needAdmin'), 'err'); return; }
+
+    const sel = el('hUser');
+    if (username && !Array.prototype.some.call(sel.options, function (o) { return o.value === username; })) {
+      sel.appendChild(new Option(username, username));
+    }
+    sel.value = username || '';
+    el('hType').value = '';
+    el('hCat').value = '';
+    el('hFrom').value = '';
+    el('hTo').value = '';
+    el('hSearch').value = '';
+    syncSearchClear('hSearch');
+
+    loadHistory();
+    goto('history');
+  }
+
+  /** Dòng nói rõ khoảng ngày đang áp dụng (theo bộ lọc của lần tải gần nhất). */
+  function histRangeText_() {
+    const f = H_FILTER || {};
+    if (f.from && f.to) return t('hist.rangeBoth', { from: fmt(f.from), to: fmt(f.to) });
+    if (f.from) return t('hist.rangeFrom', { from: fmt(f.from) });
+    if (f.to) return t('hist.rangeTo', { to: fmt(f.to) });
+    return t('hist.rangeAll');
+  }
+
+  function renderHistory() {
+    const res = H_DATA;
+    if (!res || !res.ok) { showBox('hInfo', t('msg.notLoaded'), 'info'); return; }
+
+    setHtml('hScope', IS_ADMIN
+      ? t('hist.scopeAdmin', { scope: res.scope === 'ALL' ? t('home.scopeAll') : res.scope })
+      : t('hist.scopeMember', { name: SESSION.username }));
+
+    const kw = el('hSearch').value.trim();
+
+    const f = H_FILTER || {};
+    const hasMore = res.total > res.rows.length;
+    const atCap = hasMore && H_LIMIT >= H_MAX;
+    const act = [];
+    if (hasMore && !atCap) act.push('<button type="button" class="btn ghost sm" onclick="loadMoreHistory()">' +
+      escapeHtml(t('hist.more', { n: Math.min(H_PAGE, res.total - res.rows.length) })) + '</button>');
+    if (f.from || f.to) act.push('<button type="button" class="btn ghost sm" onclick="histAllTime()">' +
+      escapeHtml(t('hist.allTime')) + '</button>');
+
+    showBox('hInfo',
+      t('msg.showingTx', { n: res.rows.length, total: res.total }) + ' · ' +
+      histRangeText_() + ' · ' +
+      t('msg.txSummary', { imp: num(res.summary.imp), box: num(res.summary.boxImp),
+                           exp: num(res.summary.exp) }) +
+      (kw ? ' · ' + t('item.searchNote', { kw: escapeHtml(kw) }) : '') +
+      (atCap ? '<div>' + escapeHtml(t('hist.capNote', { max: num(H_MAX) })) + '</div>' : '') +
+      (act.length ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">' + act.join('') + '</div>' : ''),
+      'info');
+
+    const keys = ['col.no','col.type','col.assetCode','col.name','col.qty','col.box',
+      'col.unit','col.date','col.location','col.bin','col.requester','col.poInvoice'];
+    if (IS_ADMIN) keys.push('');
+
+    const table = el('hTable');
+    table.innerHTML = '';
+    table.appendChild(headRow(keys));
+
+    const tbody = document.createElement('tbody');
+
+    if (!res.rows.length) {
+      tbody.appendChild(emptyRow(keys.length, t('hist.noResult')));
+    } else {
+      res.rows.forEach(function (r) {
+        const tr = document.createElement('tr');
+        if (EDIT_ROW === r.rowIndex) tr.classList.add('sel');
+
+        const product = escapeHtml(r.name) +
+          (r.variant ? ' · <span class="cell-variant">' + escapeHtml(r.variant) + '</span>' : '') +
+          '<div class="cell-sub">' + escapeHtml(r.cat) + ' / ' + escapeHtml(r.sub) +
+          (r.event ? ' · ' + escapeHtml(r.event) : '') + '</div>';
+
+        tr.innerHTML =
+          '<td class="num">' + escapeHtml(String(r.no)) + '</td>' +
+          '<td><span class="badge ' + (r.type === 'Import' ? 'in' : 'out') + '">' +
+            txLabel(r.type) + '</span></td>' +
+          '<td></td>' +
+          '<td class="wrap">' + product + '</td>' +
+          '<td class="num">' + num(r.qty) + '</td>' +
+          '<td class="num">' + (r.boxCount || '—') + '</td>' +
+          '<td>' + escapeHtml(r.unit) + '</td>' +
+          '<td>' + fmt(r.date) + '</td>' +
+          '<td class="wrap">' + escapeHtml(r.loc) + '</td>' +
+          '<td class="mono">' + escapeHtml(r.bin || '—') + '</td>' +
+          '<td>' + escapeHtml(r.pic) + '</td>' +
+          '<td class="wrap">' + (r.poNo ? escapeHtml(r.poNo) : '—') +
+            (r.invoiceNo ? '<div class="cell-sub">' + escapeHtml(r.invoiceNo) + '</div>' : '') + '</td>' +
+          (IS_ADMIN ? '<td></td>' : '');
+
+        /* Asset Code bấm được -> mở panel chi tiết.
+           Gắn onclick bằng JS (không nhồi vào innerHTML) để mã có dấu nháy,
+           gạch ngang hay ký tự lạ cũng không làm hỏng chuỗi HTML. */
+        const codeLink = document.createElement('span');
+        codeLink.className = 'link mono';
+        codeLink.textContent = r.code;
+        codeLink.title = t('act.viewItem');
+        codeLink.onclick = function () { openItemDetail(r.code); };
+        tr.cells[2].appendChild(codeLink);
+
+        // Nút Sửa CHỈ tạo cho admin — staff không có phần tử này trong DOM
+        if (IS_ADMIN) {
+          const btn = document.createElement('button');
+          btn.className = 'btn ghost sm';
+          btn.innerHTML = icon('pencil') + '<span>' + t('act.edit') + '</span>';
+          btn.onclick = function () { openEdit(r); };
+          tr.cells[12].appendChild(btn);
+        }
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    table.appendChild(tbody);
+  }
+
+  function exportHistCsv() {
+    if (!H_DATA || !H_DATA.rows.length) { toast(t('msg.noDataExport'), 'err'); return; }
+
+    /* Bảng chỉ tải 300 dòng đầu: nếu bộ lọc có nhiều dòng hơn thì tải ĐỦ rồi mới xuất, không để file CSV bị cắt mà vẫn tưởng là đủ. */
+    if (H_DATA.total > H_DATA.rows.length && H_FILTER) {
+      toast(t('act.loading'));
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.ok) { toast((res && res.message) || t('msg.error'), 'err'); return; }
+          writeHistCsv(res.rows);
+        })
+        .withFailureHandler(function (e) { toast(t('msg.error') + ': ' + (e.message || e), 'err'); })
+        .getTransactions(Object.assign({}, H_FILTER, { limit: 100000 }));
+      return;
+    }
+    writeHistCsv(H_DATA.rows);
+  }
+
+  function writeHistCsv(rows) {
+    const H = [t('col.no'), t('col.assetCode'), t('col.type'), t('col.category'),
+      t('col.subCategory'), t('col.name'), t('col.variant'), t('col.event'),
+      t('col.qty'), t('col.box'), t('col.unit'), t('col.date'), t('col.location'),
+      t('col.bin'), t('col.requester'), t('col.poInvoice'), t('form.supplier'),
+      t('form.price')];
+
+    const lines = [H.join(',')];
+
+    rows.forEach(function (r) {
+      lines.push([r.no, r.code, txLabel(r.type), r.cat, r.sub, r.name, r.variant,
+        r.event, r.qty, r.boxCount, r.unit, fmt(r.date), r.loc, r.bin, r.pic,
+        r.poNo + (r.invoiceNo ? ' / ' + r.invoiceNo : ''), r.supplier, r.purchasePrice]
+        .map(csvCell).join(','));
+    });
+
+    downloadCsv(t('file.history') + '-' + today() + '.csv', lines);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     PANEL CHI TIẾT 1 MẶT HÀNG — 3 khối, 1 API
+     ══════════════════════════════════════════════════════════════
+     1. Dòng tổng hợp + bảng giải nghĩa 6 phân đoạn mã
+     2. Bảng lịch sử nhập/xuất + cột Tồn sau GD (luỹ tiến)
+     3. Bảng CHI TIẾT THÙNG: từng thùng nhập bao nhiêu, còn bao nhiêu,
+        đã xuất bao nhiêu, kèm lịch sử xuất của chính thùng đó
+
+     getItemDetail gộp 2 API cũ (getItemHistory + getBoxDetail) -> 1 round-trip.
+     CHỈ ADMIN: getItemDetail (như getTransactions) gọi requireAdmin_() ở server vì có giá / PO / nhà
+     cung cấp, nên cả trang Lịch sử bị chặn với staff (Core.goto). Panel này chỉ đọc.
+     ══════════════════════════════════════════════════════════════ */
+  function openItemDetail(code) {
+    if (!code) return;
+
+    // Panel nằm ở trang Lịch sử -> đang ở trang khác thì chuyển trước
+    if (PAGE !== 'history') {
+      goto('history');
+      setTimeout(function () { loadItemDetail(code); }, 160);
+      return;
+    }
+    loadItemDetail(code);
+  }
+
+  function loadItemDetail(code) {
+    setText('itemCode', code);
+    showBox('itemInfo', t('act.loading'), 'info');
+    el('itemTable').innerHTML = '';
+    hide('itemBoxSec');
+    hide('itemNoBox');
+
+    show('itemCard');
+    el('itemCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) {
+          showBox('itemInfo', escapeHtml((res && res.message) || t('msg.noData')), 'err');
+          return;
+        }
+        renderItemDetail(res);
+      })
+      .withFailureHandler(function (e) {
+        showBox('itemInfo', t('msg.error') + ': ' + escapeHtml(e.message || e), 'err');
+      })
+      .getItemDetail(code);
+  }
+
+  function closeItemDetail() { hide('itemCard'); }
+
+  function renderItemDetail(res) {
+    const m = res.meta, s = res.summary;
+
+    /* ── Khối 1: dòng tổng hợp + giải nghĩa mã ── */
+    showBox('itemInfo', t('item.sumLine', {
+      imp: num(s.imp), exp: num(s.exp), stock: num(s.stock),
+      unit: escapeHtml(m.unit), n: s.txCount,
+      from: fmt(s.first), to: fmt(s.last)
+    }) + (s.binList ? ' · ' + t('bin.label') + ': <b>' + escapeHtml(s.binList) + '</b>' : ''),
+      s.stock < 0 ? 'err' : 'info');
+
+    /* ── Khối 2: lịch sử + cột Tồn sau GD ──
+       Sắp CŨ -> MỚI (ngược bảng Lịch sử chính) vì cột tồn là số luỹ tiến:
+       đọc từ trên xuống thấy tồn tăng khi nhập, giảm khi xuất. Nếu để mới
+       lên đầu thì cột tồn đọc ngược, rất khó hiểu. */
+    const rows = res.rows.slice().reverse();
+
+    const table = el('itemTable');
+    table.innerHTML = '';
+    table.appendChild(headRow(['col.no','col.date','col.type','col.qty','col.box',
+      'col.running','col.location','col.bin','col.requester','col.poInvoice']));
+
+    const tbody = document.createElement('tbody');
+    let bal = 0;
+
+    rows.forEach(function (r) {
+      bal += (r.type === 'Import' ? r.qty : -r.qty);
+
+      const tr = document.createElement('tr');
+      const b = stockBadge(bal);
+
+      tr.innerHTML =
+        '<td class="num">' + escapeHtml(String(r.no)) + '</td>' +
+        '<td>' + fmt(r.date) + '</td>' +
+        '<td><span class="badge ' + (r.type === 'Import' ? 'in' : 'out') + '">' +
+          txLabel(r.type) + '</span></td>' +
+        '<td class="num">' + (r.type === 'Import' ? '+' : '−') + num(r.qty) + '</td>' +
+        '<td class="num">' + (r.boxCount || '—') + '</td>' +
+        '<td class="num"><span class="badge ' + b.cls + '">' + num(bal) + '</span></td>' +
+        '<td class="wrap">' + escapeHtml(r.loc) + '</td>' +
+        '<td class="mono">' + escapeHtml(r.bin || '—') + '</td>' +
+        '<td>' + escapeHtml(r.pic) + '</td>' +
+        '<td class="wrap">' + (r.poNo ? escapeHtml(r.poNo) : '—') +
+          (r.invoiceNo ? '<div class="cell-sub">' + escapeHtml(r.invoiceNo) + '</div>' : '') + '</td>';
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+
+    /* ── Khối 3: chi tiết thùng ── */
+    renderItemBoxes(res);
+  }
+
+  /**
+   * Bảng chi tiết thùng: mỗi dòng = 1 thùng.
+   *
+   * Cột "Lịch sử xuất thùng" gộp mọi lần lấy hàng ra khỏi thùng đó, dạng
+   * "18/08: 30 · an.dinh" — nhờ vậy truy được thùng nào đã bị lấy khi nào.
+   *
+   * Hàng nhập TRƯỚC khi bật tính năng thùng không có dữ liệu này -> hiện
+   * dòng giải thích thay vì bảng trống gây hiểu nhầm là mất dữ liệu.
+   */
+  function renderItemBoxes(res) {
+    if (!res.hasBoxes) {
+      hide('itemBoxSec');
+      show('itemNoBox');
+      return;
+    }
+
+    hide('itemNoBox');
+    show('itemBoxSec');
+
+    const bs = res.boxSummary;
+
+    setHtml('itemBoxSummary', t('box.summary', {
+      n: bs.boxCount, left: bs.boxWithStock,
+      in: num(bs.totalIn), rest: num(bs.totalLeft), out: num(bs.totalOut)
+    }));
+
+    const table = el('itemBoxTable');
+    table.innerHTML = '';
+    table.appendChild(headRow(['col.boxNo','col.boxCode','col.date','col.boxIn2',
+      'col.boxOut','col.boxLeft','col.location','col.boxMoves']));
+
+    const tbody = document.createElement('tbody');
+
+    res.boxes.forEach(function (b) {
+      const tr = document.createElement('tr');
+      const empty = b.left <= 0;
+
+      // Thùng đã hết -> dải xám bên trái để mắt bỏ qua nhanh
+      if (empty) tr.classList.add('flag');
+
+      const moves = b.moves.length
+        ? b.moves.map(function (mv) {
+            return '<div class="cell-sub">' + escapeHtml(mv.dateVn) + ': <b>' +
+                   num(mv.qty) + '</b> · ' + escapeHtml(mv.pic) + '</div>';
+          }).join('')
+        : '<span class="waiting">' + t('box.noMove') + '</span>';
+
+      tr.innerHTML =
+        '<td class="num">' + b.boxNo + '</td>' +
+        '<td class="mono">' + escapeHtml(b.boxCode || '—') + '</td>' +
+        '<td>' + escapeHtml(b.dateVn) + '</td>' +
+        '<td class="num">' + num(b.qtyIn) + '</td>' +
+        '<td class="num">' + (b.out ? num(b.out) : '—') + '</td>' +
+        '<td class="num">' + (empty
+            ? '<span class="badge danger">' + t('box.emptyBox') + '</span>'
+            : '<span class="badge ok">' + num(b.left) + '</span>') + '</td>' +
+        '<td class="wrap">' + escapeHtml(b.loc || '—') + '</td>' +
+        '<td class="wrap">' + moves + '</td>';
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     FORM SỬA GIAO DỊCH (CHỈ ADMIN)
+     ══════════════════════════════════════════════════════════════
+     Sơ đồ kho ĐÃ TÁCH sang trang riêng. Ở đây chỉ còn 3 dropdown chọn
+     nhanh vị trí + link mở trang Sơ đồ để xem toàn kho.
+     ══════════════════════════════════════════════════════════════ */
+  let EDIT_EXPECT = null;
+  let EDIT_ORIG = null;   // { code, type, qty, unit } của giao dịch đang sửa
+
+  function openEdit(r) {
+    if (!canUseAdminUi()) return;
+
+    EDIT_ROW = r.rowIndex;
+    EDIT_EXPECT = { code: r.code, no: r.no };   // server đối chiếu: số dòng có thể đã dời nếu admin khác xóa/sửa
+
+    EDIT_ORIG = { code: r.code, type: r.type, qty: Number(r.qty) || 0, unit: r.unit };   // để tính ảnh hưởng lên tồn
+
+    setText('edCode', r.code);
+    setText('edType', txLabel(r.type));
+    setText('edCat', r.cat);
+    setText('edSub', r.sub);
+    setText('edName', r.name);
+    setText('edVariant', r.variant || '—');
+    setText('edEvent', r.event);
+    setText('edUnit', r.unit);
+    setText('edPic', r.pic);
+
+    el('edDate').value = r.date;
+    el('edQty').value = r.qty;
+    el('edBox').value = r.boxCount || 0;
+    el('edLocation').value = r.loc;
+    el('edPo').value = r.poNo;
+    el('edInvoice').value = r.invoiceNo;
+    el('edSupplier').value = r.supplier;
+    el('edPrice').value = r.purchasePrice;
+
+    el('edBin').value = r.bin || '';
+
+    hide('edMsg');
+    edStockPreview();
+    show('editCard');
+    el('editCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    renderHistory();
+  }
+
+  /**
+   * Dòng "Tồn hiện tại X → sau khi sửa Y" cập nhật khi gõ số lượng.
+   * Nhập: tồn tăng đúng phần chênh; Xuất: tồn giảm đúng phần chênh. Không có mã trong STOCK thì ẩn.
+   */
+  function edStockPreview() {
+    const o = EDIT_ORIG;
+    const s = o ? STOCK.filter(function (x) { return x.code === o.code; })[0] : null;
+    const q = Number(el('edQty').value);
+
+    if (!s || !isFinite(q) || q < 1) { hide('edStock'); return; }
+
+    const cur = Number(s.stock) || 0;
+    const next = cur + (o.type === 'Import' ? 1 : -1) * (q - o.qty);
+
+    showBox('edStock',
+      t('edit.stockLine', { cur: num(cur), next: num(next), unit: escapeHtml(o.unit || '') }) +
+      (next < 0 ? escapeHtml(t('edit.stockNeg')) : ''),
+      next < 0 ? 'err' : 'info');
+  }
+
+  /** Xóa mềm giao dịch đang sửa (admin). Lý do bắt buộc; server chặn nếu làm tồn âm. */
+  function deleteEditTx() {
+    if (!canUseAdminUi() || !EDIT_ROW) return;
+    const row = EDIT_ROW, expect = EDIT_EXPECT;
+    const info = el('edCode').textContent + ' · ' + el('edType').textContent + ' ' + el('edQty').value + ' ' + el('edUnit').textContent;
+
+    uiDialog({ title: t('del.txTitle'), body: t('del.txBody', { info: info }), reason: 'required', okLabel: t('del.ok'), danger: true }, function (reason) {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.ok) { toast((res && res.message) || t('msg.error'), 'err'); return; }
+          toast(res.message);
+          closeEdit();
+          reloadData();
+        })
+        .withFailureHandler(function (e) { toast(t('msg.error') + ': ' + (e.message || e), 'err'); })
+        .deleteTransaction(row, reason, expect);
+    });
+  }
+
+  function closeEdit() {
+    EDIT_ROW = null;
+    EDIT_ORIG = null;
+    hide('editCard');
+    renderHistory();
+  }
+
+  function saveEdit() {
+    if (!canUseAdminUi()) return;
+    if (!EDIT_ROW) return;
+
+    const row = EDIT_ROW, expect = EDIT_EXPECT;
+    const info = el('edCode').textContent + ' · ' + el('edType').textContent + ' ' + el('edQty').value + ' ' + el('edUnit').textContent;
+    const stockTxt = el('edStock').hidden ? '' : '\n\n' + el('edStock').textContent;
+
+    uiDialog({ title: t('hist.editTitle'), body: t('edit.confirmBody', { info: info }) + stockTxt, okLabel: t('act.save') }, function () {
+      if (EDIT_ROW !== row) return;
+      doSaveEdit_(row, expect);
+    });
+  }
+
+  function doSaveEdit_(row, expect) {
+    const btn = el('btnEdSave');
+    btn.disabled = true;
+    btn.innerHTML = '<span>' + t('act.saving') + '</span>';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        btn.disabled = false;
+        btn.innerHTML = icon('check') + '<span>' + t('act.save') + '</span>';
+
+        if (!res || !res.ok) {
+          showBox('edMsg', escapeHtml((res && res.message) || t('msg.error')), 'err');
+          return;
+        }
+
+        showBox('edMsg', escapeHtml(res.message), 'ok');
+        reloadData();
+        setTimeout(closeEdit, 900);
+      })
+      .withFailureHandler(function (e) {
+        btn.disabled = false;
+        btn.innerHTML = icon('check') + '<span>' + t('act.save') + '</span>';
+        showBox('edMsg', t('msg.error') + ': ' + escapeHtml(e.message || e), 'err');
+      })
+      .editTransaction(row, {
+        date: el('edDate').value, qty: el('edQty').value,
+        boxCount: el('edBox').value, loc: el('edLocation').value,
+        poNo: el('edPo').value, invoiceNo: el('edInvoice').value,
+        supplier: el('edSupplier').value, purchasePrice: el('edPrice').value,
+        bin: el('edBin').value.trim()
+      }, expect);
+  }
+
+</script>

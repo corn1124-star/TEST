@@ -1,0 +1,230 @@
+<!-- ============================================================
+     APP.HTML — PHẦN 1 / 3 : ICON SPRITE + TỪ ĐIỂN SONG NGỮ
+     ============================================================
+     File App.html gồm 3 phần dán nối tiếp trong CÙNG một file:
+       P1  sprite icon + từ điển VI/EN + động cơ dịch
+       P2  core JS: state, landing, sidebar, phân quyền, router 7 trang
+       P3  JS của 7 trang + bảng thùng + sơ đồ kho + template phiếu in
+     ============================================================ -->
+
+<!-- ══════════════════════════════════════════════════════════════
+     ICON SPRITE — 29 icon, nạp 1 lần, dùng lại bằng <use href="#i-...">
+     ══════════════════════════════════════════════════════════════
+     Mọi icon dùng stroke="currentColor" -> đổi màu bằng CSS `color`.
+     LƯU Ý: THÊM ICON: copy 1 <symbol>, đổi id thành i-<tên>, dán path 24x24.
+     ══════════════════════════════════════════════════════════════ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+
+  <!-- ICON: home -->
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.6V20h14V9.6"/>
+    <path d="M9.5 20v-6h5v6"/>
+  </symbol>
+
+  <!-- ICON: clipboard-check · kiểm kê -->
+  <symbol id="i-clipboard-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5h6V3H9z"/>
+    <path d="m9 13 2.2 2.2L15.5 11"/>
+  </symbol>
+
+  <!-- ICON: arrow-left -->
+  <symbol id="i-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 12H5"/><path d="m11 18-6-6 6-6"/>
+  </symbol>
+  <!-- ICON: box · trang Kho -->
+  <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 8.2v7.6a1.6 1.6 0 0 1-.85 1.42l-7 3.6a1.6 1.6 0 0 1-1.3 0l-7-3.6A1.6 1.6 0 0 1 4 15.8V8.2"/>
+    <path d="m3.4 7.6 8.1-3.5a1.6 1.6 0 0 1 1.3 0l7.8 3.5-8.6 4Z"/>
+    <path d="M12 11.6V20"/>
+  </symbol>
+
+  <!-- ICON: package · mặt hàng / thùng -->
+  <symbol id="i-package" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16.5 9.4 7.5 4.2"/>
+    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+    <path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>
+  </symbol>
+
+  <!-- ICON: history · trang Lịch sử -->
+  <symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-7.6 4.2"/>
+    <path d="M3 4.5V8h3.5"/><path d="M12 7.5V12l3.2 1.9"/>
+  </symbol>
+
+  <!-- ICON: map-pin · trang Sơ đồ kho -->
+  <symbol id="i-map-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 10.4c0 5.2-7 11.1-7 11.1s-7-5.9-7-11.1a7 7 0 0 1 14 0Z"/>
+    <circle cx="12" cy="10.2" r="2.6"/>
+  </symbol>
+
+  <!-- ICON: grid · ô kệ trong kho -->
+  <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3.5 3.5h7v7h-7Z"/><path d="M13.5 3.5h7v7h-7Z"/>
+    <path d="M3.5 13.5h7v7h-7Z"/><path d="M13.5 13.5h7v7h-7Z"/>
+  </symbol>
+
+  <!-- ICON: user · trang Của tôi -->
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="8" r="3.6"/>
+    <path d="M4.5 20.5c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6"/>
+  </symbol>
+
+  <!-- ICON: shield · trang Quản trị -->
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 22s7.5-3.4 7.5-9.6V5.4L12 2.6 4.5 5.4v7C4.5 18.6 12 22 12 22Z"/>
+    <path d="m9.2 12.2 2 2 3.6-3.8"/>
+  </symbol>
+
+  <!-- ICON: file-text · trang Phiếu kho -->
+  <symbol id="i-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.2 2.8H7a2 2 0 0 0-2 2v14.4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7.6Z"/>
+    <path d="M14 2.8v5h5"/><path d="M8.6 13h6.8"/><path d="M8.6 16.6h4.6"/>
+  </symbol>
+
+  <!-- ICON: printer · in phiếu -->
+  <symbol id="i-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6.5 9V3.5h11V9"/>
+    <path d="M6.5 17.5H5a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4.5a2 2 0 0 1-2 2h-1.5"/>
+    <path d="M6.5 14h11v6.5h-11Z"/>
+  </symbol>
+
+  <!-- ICON: arrow-down · nhập kho -->
+  <symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 4.5v15"/><path d="m5.5 13 6.5 6.5L18.5 13"/>
+  </symbol>
+
+  <!-- ICON: arrow-up · xuất kho -->
+  <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 19.5v-15"/><path d="m5.5 11 6.5-6.5L18.5 11"/>
+  </symbol>
+
+  <!-- ICON: arrow-right -->
+  <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4.5 12h15"/><path d="m13 5.5 6.5 6.5L13 18.5"/>
+  </symbol>
+
+  <!-- ICON: check -->
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m4.5 12.5 5 5 10-10"/>
+  </symbol>
+
+  <!-- ICON: x -->
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+  </symbol>
+
+  <!-- ICON: alert · cảnh báo -->
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10.3 3.9 2.5 17.4A1.9 1.9 0 0 0 4.2 20.3h15.6a1.9 1.9 0 0 0 1.7-2.9L13.7 3.9a1.9 1.9 0 0 0-3.4 0Z"/>
+    <path d="M12 9.4v4"/><path d="M12 16.7h.01"/>
+  </symbol>
+
+  <!-- ICON: bell · thông báo -->
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 8.6a6 6 0 1 0-12 0c0 6.4-2.5 7.9-2.5 7.9h17S18 15 18 8.6"/>
+    <path d="M13.7 20.2a2 2 0 0 1-3.4 0"/>
+  </symbol>
+
+  <!-- ICON: refresh · tải lại -->
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20.5 11.5a8.5 8.5 0 0 0-14.6-5L2.5 9.8"/>
+    <path d="M2.5 4.5v5.3h5.3"/>
+    <path d="M3.5 12.5a8.5 8.5 0 0 0 14.6 5l3.4-3.3"/>
+    <path d="M21.5 19.5v-5.3h-5.3"/>
+  </symbol>
+
+  <!-- ICON: search · tìm kiếm -->
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="10.6" cy="10.6" r="6.6"/><path d="m20 20-4.7-4.7"/>
+  </symbol>
+
+  <!-- ICON: download · xuất CSV -->
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20.5 15.5v3.4a1.6 1.6 0 0 1-1.6 1.6H5.1a1.6 1.6 0 0 1-1.6-1.6v-3.4"/>
+    <path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M12 15V3.5"/>
+  </symbol>
+
+  <!-- ICON: filter-off · xoá bộ lọc -->
+  <symbol id="i-filter-off" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 4.2h18l-6.8 8v4.4l-4.4 3v-7.4Z"/><path d="m3.5 3.5 17 17"/>
+  </symbol>
+
+  <!-- ICON: pencil · sửa -->
+  <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M17 3.5a2.1 2.1 0 0 1 3 3L7.4 19.1l-4.2 1.2 1.2-4.2Z"/>
+    <path d="m15 5.5 3.5 3.5"/>
+  </symbol>
+
+  <!-- ICON: trash · xoá -->
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 6.6h16"/><path d="M9.5 3.5h5"/>
+    <path d="M6 6.6l.9 13a1.6 1.6 0 0 0 1.6 1.5h7a1.6 1.6 0 0 0 1.6-1.5l.9-13"/>
+    <path d="M10.4 10.5v6.5"/><path d="M13.6 10.5v6.5"/>
+  </symbol>
+
+  <!-- ICON: lock · trường không sửa được -->
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5.5 10.5h13v10h-13Z"/><path d="M8.2 10.5V7.4a3.8 3.8 0 0 1 7.6 0v3.1"/>
+  </symbol>
+
+  <!-- ICON: menu · burger mobile -->
+  <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round">
+    <path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/>
+  </symbol>
+
+  <!-- ICON: sidebar · thu gọn thanh điều hướng -->
+  <symbol id="i-sidebar" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3.5 4.5h17v15h-17Z"/><path d="M9.5 4.5v15"/>
+  </symbol>
+
+  <!-- ICON: chevron-down -->
+  <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m6 9.5 6 6 6-6"/>
+  </symbol>
+
+  <!-- ICON: globe · đổi ngôn ngữ -->
+  <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="9"/><path d="M3 12h18"/>
+    <path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>
+  </symbol>
+
+  <!-- ICON: clock · chờ duyệt -->
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="9"/><path d="M12 7v5.3l3.5 2"/>
+  </symbol>
+
+</defs>
+</svg>
+

@@ -1,0 +1,971 @@
+ <!DOCTYPE html>
+<html lang="vi">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="description" content="Quản lý kho SEC: tồn kho, nhập xuất, kiểm kê, yêu cầu và báo cáo.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Font Inter + Roboto Mono (đủ dấu tiếng Việt, cùng họ với grab.com): tải không chặn hiển thị; chưa tải kịp thì dùng font hệ thống -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap"></noscript>
+  <?!= include('client/styles/Styles'); ?>
+  <?!= include('client/styles/Theme'); ?>
+</head>
+
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MÀN HÌNH CHỜ — logo trong vòng tròn quay, phủ toàn app cho tới khi bootstrapAll trả về.
+     ID cần khớp Core.html và Embed.html: landSub landSpin landWait landSlow landLoading landError landErrMsg landActions
+     ══════════════════════════════════════════════════════════════ -->
+<div class="landing" id="landing">
+  <div class="land-main">
+
+    <div id="landLoading">
+      <div class="land-spin run" id="landSpin" role="progressbar" aria-labelledby="landSub">
+        <img class="land-logo" alt="Grab" src="data:image/jpeg;base64,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">
+        <div class="land-scene" aria-hidden="true">
+          <svg class="sc-bg" viewBox="0 0 500 275" width="500" height="275" focusable="false" aria-hidden="true">
+  <g class="sc sc-clouds"><g class="c-cloud" transform="translate(0 0)"><g transform="translate(70 36) scale(1)"><ellipse cx="0" cy="8" rx="30" ry="9"/><circle cx="-12" cy="2" r="11"/><circle cx="6" cy="-3" r="14"/><circle cx="20" cy="4" r="9"/></g><g transform="translate(250 22) scale(0.8)"><ellipse cx="0" cy="8" rx="30" ry="9"/><circle cx="-12" cy="2" r="11"/><circle cx="6" cy="-3" r="14"/><circle cx="20" cy="4" r="9"/></g><g transform="translate(400 48) scale(1.1)"><ellipse cx="0" cy="8" rx="30" ry="9"/><circle cx="-12" cy="2" r="11"/><circle cx="6" cy="-3" r="14"/><circle cx="20" cy="4" r="9"/></g></g><g class="c-cloud" transform="translate(500 0)"><g transform="translate(70 36) scale(1)"><ellipse cx="0" cy="8" rx="30" ry="9"/><circle cx="-12" cy="2" r="11"/><circle cx="6" cy="-3" r="14"/><circle cx="20" cy="4" r="9"/></g><g transform="translate(250 22) scale(0.8)"><ellipse cx="0" cy="8" rx="30" ry="9"/><circle cx="-12" cy="2" r="11"/><circle cx="6" cy="-3" r="14"/><circle cx="20" cy="4" r="9"/></g><g transform="translate(400 48) scale(1.1)"><ellipse cx="0" cy="8" rx="30" ry="9"/><circle cx="-12" cy="2" r="11"/><circle cx="6" cy="-3" r="14"/><circle cx="20" cy="4" r="9"/></g></g></g>
+  <rect class="c-band" x="0" y="240" width="500" height="35"/>
+  <g class="sc sc-far"><g transform="translate(0 0)"><rect class="c-b1" x="0" y="152" width="34" height="52" rx="3"/><rect class="c-b2" x="38" y="166" width="26" height="38" rx="3"/><rect class="c-b1" x="68" y="140" width="40" height="64" rx="3"/><rect class="c-b2" x="112" y="160" width="30" height="44" rx="3"/><rect class="c-b1" x="146" y="146" width="36" height="58" rx="3"/><rect class="c-b2" x="186" y="164" width="28" height="40" rx="3"/><rect class="c-b1" x="218" y="134" width="42" height="70" rx="3"/><rect class="c-b2" x="264" y="158" width="30" height="46" rx="3"/><rect class="c-b1" x="298" y="144" width="38" height="60" rx="3"/><rect class="c-b2" x="340" y="162" width="28" height="42" rx="3"/><rect class="c-b1" x="372" y="138" width="40" height="66" rx="3"/><rect class="c-b2" x="416" y="156" width="30" height="48" rx="3"/><rect class="c-b1" x="450" y="148" width="40" height="56" rx="3"/></g><g transform="translate(500 0)"><rect class="c-b1" x="0" y="152" width="34" height="52" rx="3"/><rect class="c-b2" x="38" y="166" width="26" height="38" rx="3"/><rect class="c-b1" x="68" y="140" width="40" height="64" rx="3"/><rect class="c-b2" x="112" y="160" width="30" height="44" rx="3"/><rect class="c-b1" x="146" y="146" width="36" height="58" rx="3"/><rect class="c-b2" x="186" y="164" width="28" height="40" rx="3"/><rect class="c-b1" x="218" y="134" width="42" height="70" rx="3"/><rect class="c-b2" x="264" y="158" width="30" height="46" rx="3"/><rect class="c-b1" x="298" y="144" width="38" height="60" rx="3"/><rect class="c-b2" x="340" y="162" width="28" height="42" rx="3"/><rect class="c-b1" x="372" y="138" width="40" height="66" rx="3"/><rect class="c-b2" x="416" y="156" width="30" height="48" rx="3"/><rect class="c-b1" x="450" y="148" width="40" height="56" rx="3"/></g></g>
+  <g class="sc sc-lm"><g transform="translate(0 0)"><g transform="translate(125 204) scale(1.35)"><rect class="lm-sand" x="-66" y="-42" width="132" height="42"/><path class="lm-sand2" d="M-72 -42L-54 -56H54L72 -42Z"/><path class="lm-c" d="M-54 0V-14Q-48 -22 -42 -14V0Z"/><path class="lm-c" d="M-38 0V-14Q-32 -22 -26 -14V0Z"/><path class="lm-c" d="M26 0V-14Q32 -22 38 -14V0Z"/><path class="lm-c" d="M42 0V-14Q48 -22 54 -14V0Z"/><rect class="lm-sand" x="-15" y="-98" width="30" height="58"/><path class="lm-sand2" d="M-20 -98L0 -118L20 -98Z"/><rect class="lm-sand2" x="-1.2" y="-128" width="2.4" height="12"/><circle class="lm-c" cx="0" cy="-76" r="9"/><path d="M0 -76V-82M0 -76L5 -73" stroke="var(--n-600)" stroke-width="1.6" stroke-linecap="round" fill="none"/><path class="lm-sand2" d="M-10 0V-22Q0 -34 10 -22V0Z"/><path class="lm-c" d="M-6 0V-20Q0 -28 6 -20V0Z"/></g><text class="lm-name" x="125" y="264" text-anchor="middle">Chợ Bến Thành</text><g transform="translate(355 204) scale(1.4)"><path class="lm-roof" d="M-24 -72A24 24 0 0 1 24 -72Z"/><rect class="lm-roof" x="-3" y="-102" width="6" height="8" rx="2"/><rect class="lm-sand" x="-54" y="-52" width="108" height="52"/><path class="lm-sand2" d="M-60 -52L0 -76L60 -52Z"/><circle class="lm-c" cx="0" cy="-62" r="4"/><rect class="lm-c" x="-42" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-c" x="-28" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-c" x="-14" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-c" x="0" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-c" x="14" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-c" x="28" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-sand2" x="-58" y="-8" width="116" height="8" rx="2"/><path class="lm-sand2" d="M-7 -8V-26Q0 -34 7 -26V-8Z"/></g><text class="lm-name" x="355" y="264" text-anchor="middle">Nhà hát Thành phố</text><g transform="translate(585 204) scale(0.95)"><rect class="lm-b" x="-34" y="-12" width="72" height="12" rx="2"/><path class="lm-a" d="M-18 0V-118Q-18 -150 -4 -176H14Q26 -150 26 -118V0Z"/><path class="lm-b" d="M8 0V-176H14Q26 -150 26 -118V0Z"/><rect class="lm-c" x="-13" y="-10" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-19" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-28" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-37" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-46" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-55" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-64" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-73" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-82" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-91" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-100" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-109" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-118" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-127" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-136" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-145" width="34" height="2.4" rx="1"/><rect class="lm-b" x="22" y="-122" width="12" height="9"/><ellipse class="lm-a" cx="40" cy="-122" rx="20" ry="5"/><ellipse class="lm-c" cx="40" cy="-122" rx="9" ry="2.4"/><rect class="lm-a" x="3" y="-196" width="2.4" height="22" rx="1.2"/></g><text class="lm-name" x="585" y="264" text-anchor="middle">Bitexco</text><g transform="translate(815 204) scale(0.92)"><rect class="lm-b" x="-38" y="-12" width="76" height="12" rx="2"/><path class="lm-a" d="M-22 0V-90L-17 -130L-12 -165L-5 -178H5L12 -165L17 -130L22 -90V0Z"/><rect class="lm-c" x="-18" y="-10" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-19" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-28" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-37" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-46" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-55" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-64" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-73" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-82" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-17.875" y="-91" width="35.75" height="2.4" rx="1"/><rect class="lm-c" x="-16.75" y="-100" width="33.5" height="2.4" rx="1"/><rect class="lm-c" x="-15.625" y="-109" width="31.25" height="2.4" rx="1"/><rect class="lm-c" x="-14.5" y="-118" width="29" height="2.4" rx="1"/><rect class="lm-c" x="-13.375" y="-127" width="26.75" height="2.4" rx="1"/><rect class="lm-c" x="-12.142857142857142" y="-136" width="24.285714285714285" height="2.4" rx="1"/><rect class="lm-c" x="-10.857142857142858" y="-145" width="21.714285714285715" height="2.4" rx="1"/><rect class="lm-c" x="-9.571428571428571" y="-154" width="19.142857142857142" height="2.4" rx="1"/><rect class="lm-c" x="-8.285714285714285" y="-163" width="16.57142857142857" height="2.4" rx="1"/><rect class="lm-a" x="-1.5" y="-206" width="3" height="30" rx="1.5"/><rect class="lm-b" x="-1" y="-170" width="2" height="170"/></g><text class="lm-name" x="815" y="264" text-anchor="middle">Landmark 81</text><g transform="translate(1045 204) scale(1.3)"><rect class="lm-sand2" x="-62" y="-16" width="124" height="16" rx="2"/><rect class="lm-sand" x="-56" y="-46" width="112" height="30"/><rect class="lm-c" x="-52" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="-40" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="-28" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="-16" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="-4" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="8" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="20" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="32" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="44" y="-42" width="5" height="22" rx="1"/><rect class="lm-sand2" x="-48" y="-66" width="96" height="20" rx="2"/><rect class="lm-c" x="-42" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="-32" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="-22" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="-12" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="-2" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="8" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="18" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="28" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="38" y="-60" width="6" height="8" rx="1"/><rect class="lm-sand" x="-38" y="-72" width="76" height="6" rx="2"/><rect class="lm-sand2" x="-22" y="-7" width="44" height="7"/><rect class="lm-sand2" x="-1.2" y="-96" width="2.4" height="24"/><path class="lm-flag" d="M1.2 -96H14L10 -91L14 -86H1.2Z"/></g><text class="lm-name" x="1045" y="264" text-anchor="middle">Dinh Độc Lập</text><g transform="translate(1275 204) scale(1.12)"><g transform="scale(1 1)"><rect class="lm-brick" x="26" y="-98" width="26" height="98"/><rect class="lm-brick2" x="26" y="-98" width="6" height="98"/><path class="lm-brick2" d="M24 -98H54L39 -152Z"/><rect class="lm-brick2" x="38" y="-166" width="2.4" height="16"/><rect class="lm-brick2" x="34" y="-162" width="10" height="2.4"/><path class="lm-c" d="M33 -62V-74Q39 -80 45 -74V-62Z"/><path class="lm-c" d="M33 -88V-95Q39 -99 45 -95V-88Z"/><path class="lm-c" d="M33 -34V-46Q39 -52 45 -46V-34Z"/></g><g transform="scale(-1 1)"><rect class="lm-brick" x="26" y="-98" width="26" height="98"/><rect class="lm-brick2" x="26" y="-98" width="6" height="98"/><path class="lm-brick2" d="M24 -98H54L39 -152Z"/><rect class="lm-brick2" x="38" y="-166" width="2.4" height="16"/><rect class="lm-brick2" x="34" y="-162" width="10" height="2.4"/><path class="lm-c" d="M33 -62V-74Q39 -80 45 -74V-62Z"/><path class="lm-c" d="M33 -88V-95Q39 -99 45 -95V-88Z"/><path class="lm-c" d="M33 -34V-46Q39 -52 45 -46V-34Z"/></g><rect class="lm-brick" x="-26" y="-62" width="52" height="62"/><path class="lm-brick2" d="M-28 -62H28L0 -84Z"/><circle class="lm-brick2" cx="0" cy="-44" r="11"/><circle class="lm-c" cx="0" cy="-44" r="7.5"/><path class="lm-brick2" d="M-9 0V-18Q0 -30 9 -18V0Z"/><rect class="lm-c" x="-1" y="-51" width="2" height="14"/><rect class="lm-c" x="-7" y="-45" width="14" height="2"/></g><text class="lm-name" x="1275" y="264" text-anchor="middle">Nhà thờ Đức Bà</text></g><g transform="translate(1380 0)"><g transform="translate(125 204) scale(1.35)"><rect class="lm-sand" x="-66" y="-42" width="132" height="42"/><path class="lm-sand2" d="M-72 -42L-54 -56H54L72 -42Z"/><path class="lm-c" d="M-54 0V-14Q-48 -22 -42 -14V0Z"/><path class="lm-c" d="M-38 0V-14Q-32 -22 -26 -14V0Z"/><path class="lm-c" d="M26 0V-14Q32 -22 38 -14V0Z"/><path class="lm-c" d="M42 0V-14Q48 -22 54 -14V0Z"/><rect class="lm-sand" x="-15" y="-98" width="30" height="58"/><path class="lm-sand2" d="M-20 -98L0 -118L20 -98Z"/><rect class="lm-sand2" x="-1.2" y="-128" width="2.4" height="12"/><circle class="lm-c" cx="0" cy="-76" r="9"/><path d="M0 -76V-82M0 -76L5 -73" stroke="var(--n-600)" stroke-width="1.6" stroke-linecap="round" fill="none"/><path class="lm-sand2" d="M-10 0V-22Q0 -34 10 -22V0Z"/><path class="lm-c" d="M-6 0V-20Q0 -28 6 -20V0Z"/></g><text class="lm-name" x="125" y="264" text-anchor="middle">Chợ Bến Thành</text><g transform="translate(355 204) scale(1.4)"><path class="lm-roof" d="M-24 -72A24 24 0 0 1 24 -72Z"/><rect class="lm-roof" x="-3" y="-102" width="6" height="8" rx="2"/><rect class="lm-sand" x="-54" y="-52" width="108" height="52"/><path class="lm-sand2" d="M-60 -52L0 -76L60 -52Z"/><circle class="lm-c" cx="0" cy="-62" r="4"/><rect class="lm-c" x="-42" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-c" x="-28" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-c" x="-14" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-c" x="0" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-c" x="14" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-c" x="28" y="-44" width="6" height="36" rx="1.5"/><rect class="lm-sand2" x="-58" y="-8" width="116" height="8" rx="2"/><path class="lm-sand2" d="M-7 -8V-26Q0 -34 7 -26V-8Z"/></g><text class="lm-name" x="355" y="264" text-anchor="middle">Nhà hát Thành phố</text><g transform="translate(585 204) scale(0.95)"><rect class="lm-b" x="-34" y="-12" width="72" height="12" rx="2"/><path class="lm-a" d="M-18 0V-118Q-18 -150 -4 -176H14Q26 -150 26 -118V0Z"/><path class="lm-b" d="M8 0V-176H14Q26 -150 26 -118V0Z"/><rect class="lm-c" x="-13" y="-10" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-19" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-28" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-37" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-46" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-55" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-64" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-73" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-82" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-91" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-100" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-109" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-118" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-127" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-136" width="34" height="2.4" rx="1"/><rect class="lm-c" x="-13" y="-145" width="34" height="2.4" rx="1"/><rect class="lm-b" x="22" y="-122" width="12" height="9"/><ellipse class="lm-a" cx="40" cy="-122" rx="20" ry="5"/><ellipse class="lm-c" cx="40" cy="-122" rx="9" ry="2.4"/><rect class="lm-a" x="3" y="-196" width="2.4" height="22" rx="1.2"/></g><text class="lm-name" x="585" y="264" text-anchor="middle">Bitexco</text><g transform="translate(815 204) scale(0.92)"><rect class="lm-b" x="-38" y="-12" width="76" height="12" rx="2"/><path class="lm-a" d="M-22 0V-90L-17 -130L-12 -165L-5 -178H5L12 -165L17 -130L22 -90V0Z"/><rect class="lm-c" x="-18" y="-10" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-19" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-28" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-37" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-46" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-55" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-64" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-73" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-18" y="-82" width="36" height="2.4" rx="1"/><rect class="lm-c" x="-17.875" y="-91" width="35.75" height="2.4" rx="1"/><rect class="lm-c" x="-16.75" y="-100" width="33.5" height="2.4" rx="1"/><rect class="lm-c" x="-15.625" y="-109" width="31.25" height="2.4" rx="1"/><rect class="lm-c" x="-14.5" y="-118" width="29" height="2.4" rx="1"/><rect class="lm-c" x="-13.375" y="-127" width="26.75" height="2.4" rx="1"/><rect class="lm-c" x="-12.142857142857142" y="-136" width="24.285714285714285" height="2.4" rx="1"/><rect class="lm-c" x="-10.857142857142858" y="-145" width="21.714285714285715" height="2.4" rx="1"/><rect class="lm-c" x="-9.571428571428571" y="-154" width="19.142857142857142" height="2.4" rx="1"/><rect class="lm-c" x="-8.285714285714285" y="-163" width="16.57142857142857" height="2.4" rx="1"/><rect class="lm-a" x="-1.5" y="-206" width="3" height="30" rx="1.5"/><rect class="lm-b" x="-1" y="-170" width="2" height="170"/></g><text class="lm-name" x="815" y="264" text-anchor="middle">Landmark 81</text><g transform="translate(1045 204) scale(1.3)"><rect class="lm-sand2" x="-62" y="-16" width="124" height="16" rx="2"/><rect class="lm-sand" x="-56" y="-46" width="112" height="30"/><rect class="lm-c" x="-52" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="-40" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="-28" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="-16" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="-4" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="8" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="20" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="32" y="-42" width="5" height="22" rx="1"/><rect class="lm-c" x="44" y="-42" width="5" height="22" rx="1"/><rect class="lm-sand2" x="-48" y="-66" width="96" height="20" rx="2"/><rect class="lm-c" x="-42" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="-32" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="-22" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="-12" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="-2" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="8" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="18" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="28" y="-60" width="6" height="8" rx="1"/><rect class="lm-c" x="38" y="-60" width="6" height="8" rx="1"/><rect class="lm-sand" x="-38" y="-72" width="76" height="6" rx="2"/><rect class="lm-sand2" x="-22" y="-7" width="44" height="7"/><rect class="lm-sand2" x="-1.2" y="-96" width="2.4" height="24"/><path class="lm-flag" d="M1.2 -96H14L10 -91L14 -86H1.2Z"/></g><text class="lm-name" x="1045" y="264" text-anchor="middle">Dinh Độc Lập</text><g transform="translate(1275 204) scale(1.12)"><g transform="scale(1 1)"><rect class="lm-brick" x="26" y="-98" width="26" height="98"/><rect class="lm-brick2" x="26" y="-98" width="6" height="98"/><path class="lm-brick2" d="M24 -98H54L39 -152Z"/><rect class="lm-brick2" x="38" y="-166" width="2.4" height="16"/><rect class="lm-brick2" x="34" y="-162" width="10" height="2.4"/><path class="lm-c" d="M33 -62V-74Q39 -80 45 -74V-62Z"/><path class="lm-c" d="M33 -88V-95Q39 -99 45 -95V-88Z"/><path class="lm-c" d="M33 -34V-46Q39 -52 45 -46V-34Z"/></g><g transform="scale(-1 1)"><rect class="lm-brick" x="26" y="-98" width="26" height="98"/><rect class="lm-brick2" x="26" y="-98" width="6" height="98"/><path class="lm-brick2" d="M24 -98H54L39 -152Z"/><rect class="lm-brick2" x="38" y="-166" width="2.4" height="16"/><rect class="lm-brick2" x="34" y="-162" width="10" height="2.4"/><path class="lm-c" d="M33 -62V-74Q39 -80 45 -74V-62Z"/><path class="lm-c" d="M33 -88V-95Q39 -99 45 -95V-88Z"/><path class="lm-c" d="M33 -34V-46Q39 -52 45 -46V-34Z"/></g><rect class="lm-brick" x="-26" y="-62" width="52" height="62"/><path class="lm-brick2" d="M-28 -62H28L0 -84Z"/><circle class="lm-brick2" cx="0" cy="-44" r="11"/><circle class="lm-c" cx="0" cy="-44" r="7.5"/><path class="lm-brick2" d="M-9 0V-18Q0 -30 9 -18V0Z"/><rect class="lm-c" x="-1" y="-51" width="2" height="14"/><rect class="lm-c" x="-7" y="-45" width="14" height="2"/></g><text class="lm-name" x="1275" y="264" text-anchor="middle">Nhà thờ Đức Bà</text></g></g>
+  <g class="sc sc-near"><g transform="translate(0 0)"><g><rect class="c-trunk" x="34" y="190.4" width="4" height="13.600000000000001" rx="2"/><circle class="c-leaf" cx="36" cy="183.6" r="11.56"/><circle class="c-leaf2" cx="41.78" cy="178.84" r="5.78"/></g><g><rect class="c-pole" x="118.6" y="152" width="2.8" height="52" rx="1.4"/><circle class="c-lamp" cx="120" cy="150" r="4.4"/></g><g><rect class="c-trunk" x="203" y="192.8" width="4" height="11.200000000000001" rx="2"/><circle class="c-leaf" cx="205" cy="187.2" r="9.520000000000001"/><circle class="c-leaf2" cx="209.76" cy="183.28" r="4.760000000000001"/></g><g><rect class="c-trunk" x="298" y="189.6" width="4" height="14.4" rx="2"/><circle class="c-leaf" cx="300" cy="182.4" r="12.24"/><circle class="c-leaf2" cx="306.12" cy="177.36" r="6.12"/></g><g><rect class="c-pole" x="378.6" y="152" width="2.8" height="52" rx="1.4"/><circle class="c-lamp" cx="380" cy="150" r="4.4"/></g><g><rect class="c-trunk" x="450" y="192" width="4" height="12" rx="2"/><circle class="c-leaf" cx="452" cy="186" r="10.200000000000001"/><circle class="c-leaf2" cx="457.1" cy="181.8" r="5.1000000000000005"/></g></g><g transform="translate(500 0)"><g><rect class="c-trunk" x="34" y="190.4" width="4" height="13.600000000000001" rx="2"/><circle class="c-leaf" cx="36" cy="183.6" r="11.56"/><circle class="c-leaf2" cx="41.78" cy="178.84" r="5.78"/></g><g><rect class="c-pole" x="118.6" y="152" width="2.8" height="52" rx="1.4"/><circle class="c-lamp" cx="120" cy="150" r="4.4"/></g><g><rect class="c-trunk" x="203" y="192.8" width="4" height="11.200000000000001" rx="2"/><circle class="c-leaf" cx="205" cy="187.2" r="9.520000000000001"/><circle class="c-leaf2" cx="209.76" cy="183.28" r="4.760000000000001"/></g><g><rect class="c-trunk" x="298" y="189.6" width="4" height="14.4" rx="2"/><circle class="c-leaf" cx="300" cy="182.4" r="12.24"/><circle class="c-leaf2" cx="306.12" cy="177.36" r="6.12"/></g><g><rect class="c-pole" x="378.6" y="152" width="2.8" height="52" rx="1.4"/><circle class="c-lamp" cx="380" cy="150" r="4.4"/></g><g><rect class="c-trunk" x="450" y="192" width="4" height="12" rx="2"/><circle class="c-leaf" cx="452" cy="186" r="10.200000000000001"/><circle class="c-leaf2" cx="457.1" cy="181.8" r="5.1000000000000005"/></g></g></g>
+  <rect class="c-walk" x="0" y="204" width="500" height="36"/>
+  <rect class="c-road" x="0" y="212" width="500" height="28"/>
+  <rect class="c-kerb" x="0" y="210" width="500" height="3"/>
+  <g class="sc sc-dash"><rect x="-50" y="222" width="26" height="3.2" rx="1.6"/><rect x="0" y="222" width="26" height="3.2" rx="1.6"/><rect x="50" y="222" width="26" height="3.2" rx="1.6"/><rect x="100" y="222" width="26" height="3.2" rx="1.6"/><rect x="150" y="222" width="26" height="3.2" rx="1.6"/><rect x="200" y="222" width="26" height="3.2" rx="1.6"/><rect x="250" y="222" width="26" height="3.2" rx="1.6"/><rect x="300" y="222" width="26" height="3.2" rx="1.6"/><rect x="350" y="222" width="26" height="3.2" rx="1.6"/><rect x="400" y="222" width="26" height="3.2" rx="1.6"/><rect x="450" y="222" width="26" height="3.2" rx="1.6"/><rect x="500" y="222" width="26" height="3.2" rx="1.6"/><rect x="550" y="222" width="26" height="3.2" rx="1.6"/></g>
+  <g class="sc-car" transform="translate(210 234)"><g class="car-shadow"><ellipse cx="0" cy="3" rx="62" ry="4"/></g>
+  <g class="car-body">
+    <rect class="car-a" x="-70" y="-30" width="140" height="22" rx="9"/>
+    <path class="car-a" d="M-42 -30L-31 -50Q-28 -54 -23 -54H22Q28 -54 32 -49L47 -30Z"/>
+    <path class="car-glass" d="M-35 -32L-27 -48Q-25 -50 -22 -50H-2V-32Z"/>
+    <path class="car-glass" d="M3 -32V-50H21Q25 -50 27 -47L40 -32Z"/>
+    <rect class="car-b" x="-2" y="-50" width="5" height="18"/>
+    <rect class="car-b" x="-70" y="-14" width="140" height="6" rx="3"/>
+    <rect class="car-sign" x="-9" y="-62" width="24" height="9" rx="3"/><circle class="car-pin" cx="3" cy="-57.5" r="2.6"/>
+    <rect class="car-head" x="62" y="-26" width="8" height="6" rx="2.5"/><rect class="car-tail" x="-70" y="-26" width="6" height="7" rx="2.5"/>
+    <path class="car-line" d="M-22 -30V-9M26 -30V-9"/><rect class="car-line-h" x="-17" y="-24" width="8" height="2" rx="1"/><rect class="car-line-h" x="31" y="-24" width="8" height="2" rx="1"/>
+  </g>
+  <g class="car-arch"><path d="M-56 -8A14 14 0 0 1 -28 -8Z"/><path d="M28 -8A14 14 0 0 1 56 -8Z"/></g>
+  <g class="car-wheel" style="transform-origin:-42px -9px"><circle class="tyre" cx="-42" cy="-9" r="11"/><circle class="rim" cx="-42" cy="-9" r="6"/><path class="spoke" d="M-42 -15V-3M-48 -9H-36M-46.2 -13.2L-37.8 -4.8M-37.8 -13.2L-46.2 -4.8"/></g>
+  <g class="car-wheel" style="transform-origin:42px -9px"><circle class="tyre" cx="42" cy="-9" r="11"/><circle class="rim" cx="42" cy="-9" r="6"/><path class="spoke" d="M42 -15V-3M36 -9H48M37.8 -13.2L46.2 -4.8M46.2 -13.2L37.8 -4.8"/></g>
+  <g class="car-speed"><path d="M-92 -34h-22M-96 -22h-30M-88 -10h-18"/></g></g>
+</svg>
+        </div>
+      </div>
+      <p class="land-sub" id="landSub" role="status" aria-live="polite" data-i18n="land.connect"></p>
+      <p class="land-fun" id="landFun" aria-hidden="true"></p>
+      <p class="land-meta" id="landWait"></p>
+      <p class="land-note" id="landSlow" data-i18n="land.slow" hidden></p>
+    </div>
+
+    <div id="landError" role="alert" hidden>
+      <div class="land-err-mark">
+        <!-- ICON: alert -->
+        <svg aria-hidden="true" class="ico"><use href="#i-alert"></use></svg>
+      </div>
+
+      <h2 class="land-err-title" data-i18n="land.errTitle"></h2>
+      <div class="land-err-msg" id="landErrMsg"></div>
+
+      <div class="land-err-help">
+        <b data-i18n="land.errHelp"></b>
+        <ul>
+          <li data-i18n="land.errHelp1"></li>
+          <li data-i18n="land.errHelp2"></li>
+          <li data-i18n="land.errHelp3"></li>
+        </ul>
+      </div>
+
+      <div class="land-actions" id="landActions">
+        <button class="btn" onclick="location.reload()">
+          <!-- ICON: refresh -->
+          <svg aria-hidden="true" class="ico"><use href="#i-refresh"></use></svg>
+          <span data-i18n="act.retry"></span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="land-foot" data-i18n="app.org"></div>
+</div>
+
+<div class="layout" inert>
+
+  <div class="main">
+
+    <!-- ══════════════════════════════════════════════════════════════
+         ĐẦU TRANG — logo · tab chính · công cụ + tài khoản
+         Máy tính: tab nằm ngang ở đầu. Điện thoại: CSS đưa cùng thanh tab này xuống đáy màn hình.
+         Ô tìm kiếm KHÔNG nằm ở đầu trang: mỗi bảng cần tìm có ô riêng (Tồn kho, Lịch sử, Người dùng, SKU, Kiểm kê).
+         Admin: Trang chủ · Kho (Tồn kho / Lịch sử / Kiểm kê) · Báo cáo · Quản lý (Duyệt / SKU / Phiếu kho)
+         Staff: Trang chủ · Kho (tồn kho của bộ phận + gửi yêu cầu) · Báo cáo
+         "Yêu cầu của tôi" và Trợ giúp nằm trong menu tài khoản (góc phải).
+         ══════════════════════════════════════════════════════════════ -->
+    <header class="header">
+
+      <a class="hd-brand" onclick="goto('home')" role="link" tabindex="0">
+        <img class="hd-logo" alt="Grab" src="data:image/jpeg;base64,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">
+        <span class="hd-name" data-i18n="app.short"></span>
+      </a>
+
+      <nav class="topnav" id="topnav" aria-label="Menu chính">
+        <a class="nav-item active" data-page="home">
+          <svg aria-hidden="true" class="ico"><use href="#i-home"></use></svg>
+          <span class="nav-txt" data-i18n="tab.home"></span>
+        </a>
+        <a class="nav-item" data-page="kho">
+          <svg aria-hidden="true" class="ico"><use href="#i-box"></use></svg>
+          <span class="nav-txt" data-i18n="tab.kho"></span>
+        </a>
+        <a class="nav-item" data-page="report">
+          <svg aria-hidden="true" class="ico"><use href="#i-grid"></use></svg>
+          <span class="nav-txt" data-i18n="tab.report"></span>
+        </a>
+        <a class="nav-item admin-menu" data-page="admin" hidden>
+          <svg aria-hidden="true" class="ico"><use href="#i-shield"></use></svg>
+          <span class="nav-txt" data-i18n="tab.admin"></span>
+          <span class="nav-badge" id="navPending" hidden>0</span>
+        </a>
+        <a class="nav-item" data-page="pops" id="navPops" hidden>
+          <svg aria-hidden="true" class="ico"><use href="#i-package"></use></svg>
+          <span class="nav-txt" data-i18n="sub.pops"></span>
+        </a>
+      </nav>
+
+      <div class="header-right">
+        <div class="tool-group">
+          <!-- ICON: refresh -->
+          <button class="icon-btn" onclick="reloadData()" data-i18n-title="act.refresh">
+            <svg aria-hidden="true" class="ico"><use href="#i-refresh"></use></svg>
+          </button>
+
+          <!-- ICON: globe · đổi ngôn ngữ VI ⇄ EN -->
+          <button class="lang-btn" id="langBtn" onclick="toggleLang()">
+            <svg aria-hidden="true" class="ico"><use href="#i-globe"></use></svg>
+            <span id="langLabel">VI</span>
+          </button>
+
+          <div class="noti-wrap" id="notiWrap">
+            <!-- ICON: bell -->
+            <button class="icon-btn" id="notiBtn" onclick="toggleNotiBox(event)" data-i18n-title="noti.title">
+              <svg aria-hidden="true" class="ico"><use href="#i-bell"></use></svg>
+              <span class="noti-dot" id="notiDot" hidden>0</span>
+            </button>
+
+            <div class="noti-box" id="notiBox">
+              <div class="noti-head">
+                <div class="noti-title">
+                  <span data-i18n="noti.title"></span>
+                  <span class="noti-count" id="notiCount"></span>
+                </div>
+                <button class="btn ghost sm" onclick="markAllRead()" data-i18n="act.markAllRead"></button>
+              </div>
+
+              <div class="noti-tabs">
+                <div class="tabs">
+                  <button class="tab on" id="notiTabUnread" onclick="setNotiFilter(true)" data-i18n="noti.tabUnread"></button>
+                  <button class="tab" id="notiTabAll" onclick="setNotiFilter(false)" data-i18n="noti.tabAll"></button>
+                </div>
+              </div>
+
+              <div class="noti-list" id="notiList"></div>
+
+              <!-- CTA admin: sang trang Quản trị -->
+              <button class="noti-cta admin-menu" id="notiCta" hidden onclick="gotoFromNoti()">
+                <span data-i18n="noti.goAdmin"></span>
+                <span class="num" id="notiCtaNum">0</span>
+                <!-- ICON: arrow-right -->
+                <svg aria-hidden="true" class="ico"><use href="#i-arrow-right"></use></svg>
+              </button>
+
+              <!-- CTA staff: sang trang Của tôi -->
+              <button class="noti-cta member-menu" id="notiCtaMe" hidden onclick="gotoFromNotiMe()">
+                <span data-i18n="noti.goMe"></span>
+                <!-- ICON: arrow-right -->
+                <svg aria-hidden="true" class="ico"><use href="#i-arrow-right"></use></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="hd-divider"></div>
+
+        <div class="user-menu" onclick="toggleUserBox(event)">
+          <div class="avatar" id="avatar">?</div>
+          <div class="user-text">
+            <div class="user-name" id="userName" data-i18n="user.authenticating"></div>
+            <div class="user-cc" id="userCc"></div>
+          </div>
+          <!-- ICON: chevron-down -->
+          <svg aria-hidden="true" class="ico"><use href="#i-chevron-down"></use></svg>
+
+          <div class="user-box" id="userBox">
+            <div class="ub-head">
+              <div class="ub-name" id="ubName"></div>
+              <div class="ub-mail" id="ubMail"></div>
+            </div>
+            <div class="ub-row"><span data-i18n="user.costCenter"></span><b id="ubCc"></b></div>
+            <div class="ub-row"><span data-i18n="user.department"></span><b id="ubDept"></b></div>
+            <div class="ub-row"><span data-i18n="user.role"></span><b id="ubRole"></b></div>
+            <div class="ub-row"><span data-i18n="src.label"></span><b id="sbSrc"></b></div>
+            <div class="ub-links">
+              <a onclick="goto('me')"><span data-i18n="me.menu"></span><span class="nav-badge" id="navMe" hidden>0</span></a>
+              <a onclick="guideOpen(0)"><span data-i18n="guide.menu"></span></a>
+            </div>
+            <!-- phiên bản + mã bản dựng đang chạy: nhìn vào đây để biết trang có phải bản mới không -->
+            <div class="ub-ver" id="ubVer">v<?= typeof APP_VERSION !== 'undefined' ? APP_VERSION : '?' ?> · <?= typeof APP_BUILD_ID !== 'undefined' ? APP_BUILD_ID : '?' ?></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="content" id="content">
+      <div class="subnav" id="subnav" hidden></div>
+      <div class="box err" id="globalError" hidden></div>
+      <div class="box info" id="loadingBox" hidden></div>
+
+      <!-- ════════════════════════════════════════════════════════════
+           TRANG 1 — TỔNG QUAN
+           ════════════════════════════════════════════════════════════
+           ĐÃ BỎ bảng "Cần chú ý" — trùng với tab Sắp hết ở trang Kho.
+           Thay bằng KPI "Cần chú ý" BẤM ĐƯỢC, nhảy sang Kho tab Sắp hết.
+           ════════════════════════════════════════════════════════════ -->
+      <section class="page active" id="page-home">
+        <div class="dash-head">
+          <div>
+            <h1 class="page-title" data-i18n="home.title"></h1>
+            <p class="page-sub" id="homeHello"></p>
+          </div>
+          <div class="dash-actions" id="homeQuick"></div>
+        </div>
+
+        <!-- Đang tải: khung giữ chỗ cùng hình dạng với chỉ số; renderHomeKpis thay bằng số thật -->
+        <div class="stats" id="homeKpis" aria-busy="true">
+          <div class="stat"><span class="sk" style="width:60%"></span><span class="sk" style="width:40%;height:28px;margin-top:8px"></span><span class="sk" style="width:75%;margin-top:8px"></span></div>
+          <div class="stat"><span class="sk" style="width:60%"></span><span class="sk" style="width:40%;height:28px;margin-top:8px"></span><span class="sk" style="width:75%;margin-top:8px"></span></div>
+          <div class="stat"><span class="sk" style="width:60%"></span><span class="sk" style="width:40%;height:28px;margin-top:8px"></span><span class="sk" style="width:75%;margin-top:8px"></span></div>
+          <div class="stat"><span class="sk" style="width:60%"></span><span class="sk" style="width:40%;height:28px;margin-top:8px"></span><span class="sk" style="width:75%;margin-top:8px"></span></div>
+          <div class="stat"><span class="sk" style="width:60%"></span><span class="sk" style="width:40%;height:28px;margin-top:8px"></span><span class="sk" style="width:75%;margin-top:8px"></span></div>
+        </div>
+
+        <div class="dash-grid">
+          <section class="panel panel-flow" aria-labelledby="dhFlow">
+            <div class="panel-head">
+              <h2 class="panel-title" id="dhFlow" data-i18n="hm.flowTitle"></h2>
+              <div class="flow-legend" id="flowLegend"></div>
+            </div>
+            <div class="flow-wrap"><div id="flowChart"><span class="sk" style="width:100%;height:180px"></span></div></div>
+            <details class="tbl-view">
+              <summary data-i18n="hm.tblView"></summary>
+              <div id="flowTable"></div>
+            </details>
+          </section>
+
+          <section class="panel" aria-labelledby="dhAttn">
+            <div class="panel-head"><h2 class="panel-title" id="dhAttn" data-i18n="hm.alertTitle"></h2></div>
+            <div id="homeAlerts"><span class="sk" style="width:100%"></span></div>
+          </section>
+
+          <section class="panel panel-half" aria-labelledby="dhHealth">
+            <div class="panel-head"><h2 class="panel-title" id="dhHealth" data-i18n="hm.healthTitle"></h2></div>
+            <div id="homeHealth"><span class="sk" style="width:100%"></span></div>
+          </section>
+
+          <section class="panel panel-half" aria-labelledby="dhCat">
+            <div class="panel-head"><h2 class="panel-title" id="dhCat" data-i18n="chart.byCategory"></h2></div>
+            <div id="catBars"><span class="sk" style="width:100%"></span></div>
+          </section>
+        </div>
+      </section>
+      <!-- ════════════════════════════════════════════════════════════
+           TRANG 2 — KHO
+           ════════════════════════════════════════════════════════════
+           ĐÃ BỎ dải "3 yêu cầu gần nhất" — trùng với bảng đầy đủ ở
+           trang Của tôi. Sau khi gửi yêu cầu, staff được nhắc mở Của tôi.
+           ════════════════════════════════════════════════════════════ -->
+      <section class="page" id="page-kho">
+        <h1 class="page-title" data-i18n="kho.title"></h1>
+        <p class="page-sub" data-i18n="kho.sub"></p>
+
+        <!-- ── Chọn loại giao dịch ── -->
+        <div class="card kho-act">
+          <div class="kho-act-head">
+            <label data-i18n="kho.chooseAction"></label>
+            <a class="link kho-viewstock" role="button" tabindex="0" onclick="scrollToStock()"
+               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();scrollToStock();}"
+               data-i18n="kho.viewStock"></a>
+          </div>
+
+          <div class="seg" style="margin-top:8px">
+            <!-- ICON: arrow-down -->
+            <button class="seg-btn" id="segIn" onclick="toggleTxType('Import')">
+              <svg aria-hidden="true" class="ico"><use href="#i-arrow-down"></use></svg>
+              <span data-i18n="tx.import"></span>
+            </button>
+
+            <!-- ICON: arrow-up -->
+            <button class="seg-btn out" id="segOut" onclick="toggleTxType('Export')">
+              <svg aria-hidden="true" class="ico"><use href="#i-arrow-up"></use></svg>
+              <span data-i18n="tx.export"></span>
+            </button>
+          </div>
+
+          <div class="auto-row" id="autoRow" hidden>
+            <div class="auto-cell"><span data-i18n="form.type"></span><b id="aType"></b></div>
+            <div class="auto-cell"><span data-i18n="user.costCenter"></span><b id="aCc"></b></div>
+            <div class="auto-cell"><span data-i18n="user.department"></span><b id="aDept"></b></div>
+            <div class="auto-cell"><span data-i18n="form.requester"></span><b id="aPic"></b></div>
+          </div>
+
+          <div class="role-note" data-i18n="kho.memberNote" hidden></div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════════
+             FORM NHẬP KHO — 4 BƯỚC theo trình tự nghiệp vụ
+             ══════════════════════════════════════════════════════════
+             B1 Định danh hàng hoá    -> sinh Asset Code + giải nghĩa 6 đoạn
+             B2 Số lượng & đóng thùng -> bảng nhập chi tiết từng thùng
+             B3 Thời gian & vị trí
+             B4 Chứng từ mua
+
+             VÌ SAO CHIA BƯỚC: form cũ 14 ô dàn ngang 4 hàng, người dùng
+             không biết ô nào ảnh hưởng Asset Code, ô nào chỉ là thông tin
+             kèm theo. Chia bước làm rõ nhân quả và giảm sai sót nhập liệu.
+             ══════════════════════════════════════════════════════════ -->
+        <div class="card" id="importCard" hidden>
+          <h2 class="sec-title" data-i18n="kho.importing"></h2>
+
+          <!-- ── BƯỚC 1: Định danh hàng hoá ── -->
+          <div class="fstep">
+            <div class="fstep-head">
+              <span class="fstep-no">1</span>
+              <div class="fstep-txt">
+                <div class="fstep-title" data-i18n="step.identify"></div>
+                <div class="fstep-sub" data-i18n="step.identifySub"></div>
+              </div>
+            </div>
+
+            <div class="grid">
+              <div class="field"><label data-i18n="sku.pick"></label>
+                <input type="text" id="iPickFilter" data-i18n-ph="sku.pickFilterPh" oninput="pickSkuFill()"
+                       autocomplete="off" style="margin-bottom:6px">
+                <select id="iPickSku" onchange="onPickSku()"></select>
+                <div class="hint" data-i18n="sku.pickHint"></div></div>
+            </div>
+
+            <div class="grid">
+              <div class="field"><label data-i18n="form.category"></label>
+                <select id="iCategory" onchange="onCatChange()"></select></div>
+              <div class="field"><label data-i18n="form.subCategory"></label>
+                <select id="iSub" onchange="onSubChange()"></select></div>
+            </div>
+
+            <div class="grid">
+              <div class="field"><label data-i18n="form.name"></label>
+                <input type="text" id="iName" oninput="previewCode()" autocomplete="off"></div>
+
+              <div class="field" id="iVariantWrap" hidden>
+                <label id="iVariantLabel" data-i18n="form.variant"></label>
+                <input type="text" id="iVariant" list="variantList" maxlength="60"
+                       oninput="previewCode()" autocomplete="off">
+                <datalist id="variantList">
+                  <option value="Size S"></option><option value="Size M"></option>
+                  <option value="Size L"></option><option value="Size XL"></option>
+                  <option value="Size XXL"></option><option value="Free size"></option>
+                </datalist>
+                <div class="hint" data-i18n="form.variantHint"></div>
+              </div>
+
+              <div class="field"><label data-i18n="form.event"></label>
+                <input type="text" id="iEvent" oninput="previewCode()" autocomplete="off"></div>
+            </div>
+
+            <!-- Chủ sở hữu SKU mới: chỉ admin chọn. Staff luôn là bộ phận của mình, PIC là chính họ khi admin duyệt. -->
+            <div class="grid admin-menu" id="iOwnerRow" hidden>
+              <div class="field w-md"><label data-i18n="sku.team"></label>
+                <select id="iTeam" onchange="previewCode()"></select></div>
+              <div class="field"><label data-i18n="sku.pic"></label>
+                <select id="iPic"></select>
+                <div class="hint" data-i18n="sku.picHint"></div></div>
+            </div>
+
+            <!-- Kết quả bước 1: mã hệ thống sinh ra -->
+            <div class="code-panel">
+              <div class="code-left">
+                <span class="code-label" data-i18n="code.label"></span>
+                <div class="code-value" id="impCode"></div>
+                <div class="code-note" id="impNote"></div>
+              </div>
+              <!-- ICON: lock -->
+              <svg aria-hidden="true" class="ico"><use href="#i-lock"></use></svg>
+            </div>
+
+            <!-- Bảng giải nghĩa 6 phân đoạn — JS đổ nội dung -->
+            <div class="code-parts" id="codeParts"></div>
+          </div>
+
+          <!-- ── BƯỚC 2: Số lượng & đóng thùng ── -->
+          <div class="fstep">
+            <div class="fstep-head">
+              <span class="fstep-no">2</span>
+              <div class="fstep-txt">
+                <div class="fstep-title" data-i18n="step.qty"></div>
+                <div class="fstep-sub" data-i18n="step.qtySub"></div>
+              </div>
+            </div>
+
+            <div class="grid">
+              <div class="field w-sm"><label data-i18n="form.qty"></label>
+                <input type="number" id="iQty" min="1" step="1" value="1"
+                       oninput="onQtyOrBoxChange()"></div>
+
+              <div class="field w-sm"><label data-i18n="form.unit"></label>
+                <select id="iUnit"></select></div>
+
+              <div class="field w-sm"><label data-i18n="form.box"></label>
+                <input type="number" id="iBox" min="0" max="50" step="1" value="0"
+                       oninput="onQtyOrBoxChange()">
+                <div class="hint" data-i18n="form.boxHint"></div></div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════════════
+                 BẢNG NHẬP CHI TIẾT THÙNG
+                 Hiện khi Số thùng > 0. Mỗi thẻ = 1 thùng, nhập TAY số
+                 lượng thực tế. Tổng PHẢI khớp Số lượng — server chặn nếu
+                 lệch, nên dòng tổng đổi màu ngay khi gõ.
+                 ══════════════════════════════════════════════════════ -->
+            <div id="boxWrap" hidden>
+              <div class="sec-head" style="margin:14px 0 8px">
+                <h2 class="sec-title" style="font-size:var(--fs-md)">
+                  <!-- ICON: package -->
+                  <svg aria-hidden="true" class="ico ico-sm" style="vertical-align:-2px;margin-right:4px"><use href="#i-package"></use></svg>
+                  <span data-i18n="box.inputTitle"></span>
+                </h2>
+
+                <button class="btn ghost sm" onclick="splitBoxesEven()">
+                  <!-- ICON: check -->
+                  <svg aria-hidden="true" class="ico"><use href="#i-check"></use></svg>
+                  <span data-i18n="box.splitEven"></span>
+                </button>
+
+                <button class="btn ghost sm" onclick="clearBoxQty()">
+                  <!-- ICON: x -->
+                  <svg aria-hidden="true" class="ico"><use href="#i-x"></use></svg>
+                  <span data-i18n="box.clearQty"></span>
+                </button>
+              </div>
+
+              <p class="hint" style="margin:0 0 8px" data-i18n="box.inputHint"></p>
+
+              <div class="box-grid" id="boxGrid"></div>
+              <div class="box-total" id="boxTotal"></div>
+            </div>
+          </div>
+
+          <!-- ── BƯỚC 3: Thời gian & vị trí ── -->
+          <div class="fstep">
+            <div class="fstep-head">
+              <span class="fstep-no">3</span>
+              <div class="fstep-txt">
+                <div class="fstep-title" data-i18n="step.where"></div>
+                <div class="fstep-sub" data-i18n="step.whereSub"></div>
+              </div>
+            </div>
+
+            <div class="grid">
+              <div class="field w-sm"><label data-i18n="form.dateIn"></label>
+                <input type="date" id="iDate"></div>
+              <div class="field w-md"><label data-i18n="form.locationIn"></label>
+                <select id="iLocation"></select></div>
+            </div>
+          </div>
+
+          <!-- ── BƯỚC 4: Chứng từ mua ── -->
+          <div class="fstep last">
+            <div class="fstep-head">
+              <span class="fstep-no">4</span>
+              <div class="fstep-txt">
+                <div class="fstep-title" data-i18n="step.doc"></div>
+                <div class="fstep-sub" data-i18n="step.docSub"></div>
+              </div>
+            </div>
+
+            <div class="grid">
+              <div class="field w-sm"><label data-i18n="form.po"></label>
+                <input type="text" id="iPo" autocomplete="off"></div>
+              <div class="field w-sm"><label data-i18n="form.invoice"></label>
+                <input type="text" id="iInvoice" autocomplete="off"></div>
+              <div class="field"><label data-i18n="form.supplier"></label>
+                <input type="text" id="iSupplier" autocomplete="off"></div>
+              <div class="field w-sm"><label data-i18n="form.price"></label>
+                <input type="number" id="iPrice" min="1" step="1" value=""></div>
+            </div>
+          </div>
+
+          <div class="grid" style="margin-top:20px;gap:12px">
+            <button class="btn" id="btnImport" onclick="doImport()"></button>
+            <!-- Giữ PO / hoá đơn / NCC / ngày / vị trí cho mã kế tiếp của cùng đợt hàng -->
+            <button class="btn ghost" id="btnImportMore" onclick="doImport(true)" data-i18n-title="act.saveMoreTip">
+              <!-- ICON: check -->
+              <svg aria-hidden="true" class="ico"><use href="#i-check"></use></svg>
+              <span data-i18n="act.saveMore"></span>
+            </button>
+            <button class="btn ghost" onclick="resetImport()">
+              <!-- ICON: x -->
+              <svg aria-hidden="true" class="ico"><use href="#i-x"></use></svg>
+              <span data-i18n="act.clear"></span>
+            </button>
+          </div>
+
+          <div class="box" id="impMsg" hidden></div>
+        </div>
+
+        <!-- ── Chọn hàng để xuất ── -->
+        <div class="card" id="exportCard" hidden>
+          <h2 class="sec-title" data-i18n="kho.exporting"></h2>
+          <p class="hint" style="margin:0 0 14px" data-i18n="kho.pickHint"></p>
+
+          <div class="filters">
+            <div class="field w-md"><label data-i18n="form.category"></label>
+              <select id="ePickCat" onchange="renderPickTable()"></select></div>
+            <div class="field w-md">
+              <label>&nbsp;</label>
+              <input type="text" id="ePickText" data-i18n-ph="form.searchStockPh"
+                     oninput="renderPickTable()" autocomplete="off"></div>
+          </div>
+
+          <div class="table-wrap"><table id="pickTable"></table></div>
+          <div class="box" id="expMsg" hidden></div>
+        </div>
+
+        <!-- ── Bảng tồn kho ── -->
+        <div class="sec" id="stockSec">
+          <div class="sec-head">
+            <h2 class="sec-title" data-i18n="kho.stockTitle"></h2>
+
+            <div class="tabs">
+              <button class="tab on" id="stTabAll" onclick="setStockTab('')"    data-i18n="filter.all"></button>
+              <button class="tab"    id="stTabIn"  onclick="setStockTab('in')"  data-i18n="st.inStock"></button>
+              <button class="tab"    id="stTabAttn" onclick="setStockTab('attn')" data-i18n="st.attn"></button>
+              <button class="tab"    id="stTabLow" onclick="setStockTab('low')" data-i18n="st.lowStock"></button>
+              <button class="tab"    id="stTabOut" onclick="setStockTab('out')" data-i18n="filter.outAndNeg"></button>
+            </div>
+
+            <div class="search">
+              <span class="search-ico"><svg aria-hidden="true" class="ico"><use href="#i-search"></use></svg></span>
+              <input type="text" id="kSearch" data-i18n-ph="form.searchPh" oninput="onStockSearch()" autocomplete="off">
+              <button class="search-clear" id="kSearchClear" onclick="clearSearchBox('kSearch', renderStock)" hidden>
+                <svg aria-hidden="true" class="ico ico-sm"><use href="#i-x"></use></svg>
+              </button>
+            </div>
+
+            <select id="kFilterCat" class="hd-select" onchange="renderStock()"></select>
+            <select id="kFilterLoc" class="hd-select" onchange="renderStock()"></select>
+
+            <button class="btn ghost sm" onclick="exportStockCsv()">
+              <!-- ICON: download -->
+              <svg aria-hidden="true" class="ico"><use href="#i-download"></use></svg>
+              <span data-i18n="act.export"></span>
+            </button>
+          </div>
+
+          <div class="box info" id="stockInfo" hidden></div>
+          <div class="table-wrap"><table id="stockTable"></table></div>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           TRANG 3 — LỊCH SỬ GIAO DỊCH
+           ════════════════════════════════════════════════════════════
+           Chứa 2 panel phụ, CẢ 2 PHẢI nằm trong section này:
+             #itemCard — lịch sử + tồn timeline + CHI TIẾT THÙNG (chỉ admin: server requireAdmin_)
+             #editCard — sửa giao dịch (CHỈ admin)
+
+           Sơ đồ kho đã bỏ.
+           Form Sửa chỉ còn một ô Vị trí nhập tự do.
+           ════════════════════════════════════════════════════════════ -->
+      <section class="page" id="page-history">
+        <h1 class="page-title" data-i18n="hist.title"></h1>
+        <p class="page-sub" id="hScope"></p>
+
+        <div class="filters">
+          <div class="field w-full">
+            <label data-i18n="form.keyword"></label>
+            <div class="search">
+              <span class="search-ico"><svg aria-hidden="true" class="ico"><use href="#i-search"></use></svg></span>
+              <input type="text" id="hSearch" data-i18n-ph="form.searchPh" oninput="onHistSearch()" autocomplete="off">
+              <button class="search-clear" id="hSearchClear" onclick="clearSearchBox('hSearch', loadHistory)" hidden>
+                <svg aria-hidden="true" class="ico ico-sm"><use href="#i-x"></use></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="field w-sm">
+            <label data-i18n="form.type"></label>
+            <select id="hType" onchange="loadHistory()">
+              <option value="" data-i18n="filter.inOut"></option>
+              <option value="Import" data-i18n="filter.onlyIn"></option>
+              <option value="Export" data-i18n="filter.onlyOut"></option>
+            </select>
+          </div>
+
+          <div class="field w-md"><label data-i18n="form.requester"></label>
+            <select id="hUser" onchange="loadHistory()"></select></div>
+
+          <div class="field w-md"><label data-i18n="form.category"></label>
+            <select id="hCat" onchange="loadHistory()"></select></div>
+
+          <div class="field w-sm"><label data-i18n="form.from"></label>
+            <input type="date" id="hFrom" onchange="loadHistory()"></div>
+
+          <div class="field w-sm"><label data-i18n="form.to"></label>
+            <input type="date" id="hTo" onchange="loadHistory()"></div>
+
+          <button class="btn ghost" onclick="clearHistFilter()">
+            <!-- ICON: filter-off -->
+            <svg aria-hidden="true" class="ico"><use href="#i-filter-off"></use></svg>
+            <span data-i18n="act.clearFilter"></span>
+          </button>
+
+          <button class="btn ghost" onclick="exportHistCsv()">
+            <!-- ICON: download -->
+            <svg aria-hidden="true" class="ico"><use href="#i-download"></use></svg>
+            <span data-i18n="act.export"></span>
+          </button>
+        </div>
+
+        <p class="hint" style="margin:0 0 10px" data-i18n="msg.searchHint"></p>
+        <div class="box info" id="hInfo" hidden></div>
+        <div class="table-wrap tall rt"><table id="hTable"></table></div>
+
+        <!-- ══════════════════════════════════════════════════════════
+             PANEL CHI TIẾT 1 MẶT HÀNG — 3 khối
+             ══════════════════════════════════════════════════════════
+             1. Dòng tổng hợp + giải nghĩa 6 phân đoạn mã
+             2. Bảng lịch sử nhập/xuất + cột Tồn sau GD (luỹ tiến)
+             3. Bảng CHI TIẾT THÙNG: từng thùng nhập bao nhiêu, còn bao
+                nhiêu, đã xuất bao nhiêu, và lịch sử xuất của thùng đó
+
+             Chỉ admin xem được (getItemDetail gọi requireAdmin_), chỉ đọc. 1 API trả cả 3.
+             ══════════════════════════════════════════════════════════ -->
+        <div class="card" id="itemCard" hidden style="margin-top:20px">
+          <div class="sec-head" style="margin-bottom:14px">
+            <h2 class="sec-title">
+              <!-- ICON: package -->
+              <svg aria-hidden="true" class="ico ico-sm" style="vertical-align:-2px;margin-right:4px"><use href="#i-package"></use></svg>
+              <span data-i18n="item.title"></span>
+              <span class="mono" id="itemCode" style="margin-left:8px"></span>
+            </h2>
+            <button class="btn ghost sm" onclick="closeItemDetail()">
+              <!-- ICON: x -->
+              <svg aria-hidden="true" class="ico"><use href="#i-x"></use></svg>
+              <span data-i18n="item.close"></span>
+            </button>
+          </div>
+
+          <div class="box info" id="itemInfo" hidden></div>
+
+          <h2 class="sec-title" style="font-size:var(--fs-md);margin:18px 0 8px"
+              data-i18n="item.timeline"></h2>
+          <div class="table-wrap"><table id="itemTable"></table></div>
+
+          <!-- Chi tiết thùng — chỉ hiện khi mã này có dữ liệu thùng -->
+          <div id="itemBoxSec" hidden>
+            <div class="sec-head" style="margin:18px 0 8px">
+              <h2 class="sec-title" style="font-size:var(--fs-md)" data-i18n="box.detailTitle"></h2>
+              <span class="hint" style="margin:0" id="itemBoxSummary"></span>
+            </div>
+            <div class="table-wrap"><table id="itemBoxTable"></table></div>
+          </div>
+
+          <p class="hint" id="itemNoBox" hidden data-i18n="box.noData"></p>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════════
+             FORM SỬA GIAO DỊCH — CHỈ ADMIN
+             .admin-gate: applyRoleUi() CHỈ gỡ data-locked, KHÔNG tự hiện.
+             hidden chỉ gỡ trong openEdit() sau khi qua canUseAdminUi().
+             ══════════════════════════════════════════════════════════ -->
+        <div class="card editing admin-gate" id="editCard" data-locked hidden style="margin-top:20px">
+          <h2 class="sec-title">
+            <span data-i18n="hist.editTitle"></span>
+            <span class="mono" id="edCode" style="margin-left:6px"></span>
+          </h2>
+
+          <div class="locked-row">
+            <div class="auto-cell"><span data-i18n="form.type"></span><b id="edType"></b></div>
+            <div class="auto-cell"><span data-i18n="form.category"></span><b id="edCat"></b></div>
+            <div class="auto-cell"><span data-i18n="form.subCategory"></span><b id="edSub"></b></div>
+            <div class="auto-cell"><span data-i18n="form.name"></span><b id="edName"></b></div>
+            <div class="auto-cell"><span data-i18n="form.variant"></span><b id="edVariant"></b></div>
+            <div class="auto-cell"><span data-i18n="form.event"></span><b id="edEvent"></b></div>
+            <div class="auto-cell"><span data-i18n="form.unit"></span><b id="edUnit"></b></div>
+            <div class="auto-cell"><span data-i18n="form.requester"></span><b id="edPic"></b></div>
+          </div>
+
+          <p class="hint" style="margin:0 0 14px" data-i18n="hist.lockedHint"></p>
+
+          <div class="grid">
+            <div class="field w-sm"><label data-i18n="form.date"></label><input type="date" id="edDate"></div>
+            <div class="field w-sm"><label data-i18n="form.qty"></label><input type="number" id="edQty" min="1" step="1" oninput="edStockPreview()"></div>
+            <div class="field w-sm"><label data-i18n="form.box"></label><input type="number" id="edBox" min="0" step="1" value="0"></div>
+            <div class="field w-md"><label data-i18n="form.location"></label><select id="edLocation"></select></div>
+          </div>
+
+          <div class="grid">
+            <div class="field w-sm"><label data-i18n="form.po"></label><input type="text" id="edPo" autocomplete="off"></div>
+            <div class="field w-sm"><label data-i18n="form.invoice"></label><input type="text" id="edInvoice" autocomplete="off"></div>
+            <div class="field"><label data-i18n="form.supplier"></label><input type="text" id="edSupplier" autocomplete="off"></div>
+            <div class="field w-sm"><label data-i18n="form.price"></label><input type="number" id="edPrice" min="0" step="1" value="0"></div>
+          </div>
+
+          <div class="grid" style="margin-top:14px">
+            <div class="field w-md">
+              <label data-i18n="bin.label"></label>
+              <input type="text" id="edBin" maxlength="30" autocomplete="off" data-i18n-ph="bin.freePh">
+              <div class="hint" data-i18n="bin.freeHint"></div>
+            </div>
+          </div>
+
+          <div class="box info" id="edStock" hidden style="margin-top:14px"></div>
+
+          <div class="grid" style="margin-top:20px;gap:12px">
+            <button class="btn" id="btnEdSave" onclick="saveEdit()">
+              <!-- ICON: check -->
+              <svg aria-hidden="true" class="ico"><use href="#i-check"></use></svg>
+              <span data-i18n="act.save"></span>
+            </button>
+            <button class="btn ghost" onclick="closeEdit()">
+              <!-- ICON: x -->
+              <svg aria-hidden="true" class="ico"><use href="#i-x"></use></svg>
+              <span data-i18n="act.cancel"></span>
+            </button>
+            <button class="btn ghost danger" onclick="deleteEditTx()" style="margin-left:auto">
+              <!-- ICON: trash -->
+              <svg aria-hidden="true" class="ico"><use href="#i-trash"></use></svg>
+              <span data-i18n="del.txTitle"></span>
+            </button>
+          </div>
+
+          <div class="box" id="edMsg" hidden></div>
+        </div>
+      </section>
+      <!-- ════════════════════════════════════════════════════════════
+           TRANG 5 — CỦA TÔI (mọi vai trò)
+           ════════════════════════════════════════════════════════════
+           ĐÃ BỎ khối "Thông báo từ quản trị viên" — trùng với chuông ở
+           header, mà chuông dùng được ở mọi trang. Trang này giờ chỉ còn
+           3 KPI (cũng là bộ lọc) + bảng yêu cầu đã gửi (nơi đọc lý do từ chối) + Hồ sơ.
+           ════════════════════════════════════════════════════════════ -->
+      <section class="page" id="page-me">
+        <h1 class="page-title" data-i18n="me.title"></h1>
+        <p class="page-sub" data-i18n="me.sub"></p>
+
+        <div class="kpis" id="meKpis"></div>
+
+        <div class="sec" id="myReqSec">
+          <div class="sec-head">
+            <h2 class="sec-title" data-i18n="me.reqTitle"></h2>
+
+            <div class="tabs">
+              <button class="tab on" id="mrTabAll" onclick="setMyReqTab('')"         data-i18n="filter.all"></button>
+              <button class="tab"    id="mrTabPen" onclick="setMyReqTab('PENDING')"  data-i18n="st.pending"></button>
+              <button class="tab"    id="mrTabApp" onclick="setMyReqTab('APPROVED')" data-i18n="st.approved"></button>
+              <button class="tab"    id="mrTabRej" onclick="setMyReqTab('REJECTED')" data-i18n="st.rejected"></button>
+            </div>
+
+            <button class="btn ghost sm" onclick="loadMyRequests()">
+              <!-- ICON: refresh -->
+              <svg aria-hidden="true" class="ico"><use href="#i-refresh"></use></svg>
+              <span data-i18n="act.reload"></span>
+            </button>
+          </div>
+
+          <div class="box info" id="myReqInfo" hidden></div>
+          <div class="table-wrap rt"><table id="myReqTable"></table></div>
+
+        </div>
+
+        <!-- Hồ sơ nằm DƯỚI bảng: việc chính của trang là theo dõi yêu cầu -->
+        <div class="card" style="margin-top:20px">
+          <label data-i18n="me.profile"></label>
+          <div class="auto-row" style="margin-top:8px;padding-top:0;border-top:none">
+            <div class="auto-cell"><span data-i18n="form.username"></span><b id="meName"></b></div>
+            <div class="auto-cell"><span data-i18n="form.email"></span><b id="meMail"></b></div>
+            <div class="auto-cell"><span data-i18n="user.costCenter"></span><b id="meCc"></b></div>
+            <div class="auto-cell"><span data-i18n="user.department"></span><b id="meDept"></b></div>
+            <div class="auto-cell"><span data-i18n="user.role"></span><b id="meRole"></b></div>
+          </div>
+          <div class="role-note" data-i18n="kho.memberNote" hidden></div>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           TRANG 6 — QUẢN TRỊ (chỉ admin)
+           ════════════════════════════════════════════════════════════ -->
+      <section class="page" id="page-admin">
+        <h1 class="page-title" data-i18n="adm.title"></h1>
+        <p class="page-sub" data-i18n="adm.sub"></p>
+
+        <div class="sec">
+          <div class="sec-head">
+            <h2 class="sec-title">
+              <span data-i18n="adm.pendingTitle"></span>
+              <span class="sec-count" id="apCount">0</span>
+            </h2>
+
+            <button class="btn ghost sm" id="apReload" onclick="loadApproval()">
+              <!-- ICON: refresh -->
+              <svg aria-hidden="true" class="ico"><use href="#i-refresh"></use></svg>
+              <span data-i18n="act.reload"></span>
+            </button>
+          </div>
+
+          <div class="box info" id="apInfo" hidden></div>
+          <!-- Duyệt hàng loạt: nút hiện khi có yêu cầu chờ; số đã chọn do renderApproval/apBulkSync cập nhật -->
+          <div class="ap-bulk" id="apBulk" style="margin:0 0 10px" hidden>
+            <button class="btn sm" id="apBulkBtn" onclick="doApproveSelected()" disabled></button>
+          </div>
+          <div class="table-wrap tall rt"><table id="apTable"></table></div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-head">
+            <h2 class="sec-title" data-i18n="adm.userTitle"></h2>
+
+            <div class="tabs">
+              <button class="tab on" id="uTabAll" onclick="setUserFilter('')"       data-i18n="filter.all"></button>
+              <button class="tab"    id="uTabAdm" onclick="setUserFilter('admin')"  data-i18n="role.admin"></button>
+              <button class="tab"    id="uTabMem" onclick="setUserFilter('member')" data-i18n="role.member"></button>
+            </div>
+
+            <input type="text" id="uSearch" class="hd-input" data-i18n-ph="form.searchUserPh"
+                   oninput="renderUsers()" autocomplete="off">
+
+            <button class="btn ghost sm" onclick="loadUsers()">
+              <!-- ICON: refresh -->
+              <svg aria-hidden="true" class="ico"><use href="#i-refresh"></use></svg>
+              <span data-i18n="act.reload"></span>
+            </button>
+          </div>
+
+          <div class="card admin-gate" id="userForm" data-locked>
+            <label id="userFormTitle" data-i18n="adm.userAdd"></label>
+
+            <div class="grid" style="margin-top:8px">
+              <div class="field"><label data-i18n="form.email"></label>
+                <input type="email" id="uEmail" placeholder="ten.nguoi@grabtaxi.com" autocomplete="off"></div>
+              <div class="field w-md"><label data-i18n="form.username"></label>
+                <input type="text" id="uUsername" placeholder="ten.nguoi" autocomplete="off"></div>
+              <div class="field w-sm"><label data-i18n="user.costCenter"></label>
+                <input type="text" id="uCc" placeholder="OPSCOA" autocomplete="off"></div>
+              <div class="field w-sm"><label data-i18n="user.role"></label>
+                <select id="uRole">
+                  <option value="member" data-i18n="role.member"></option>
+                  <option value="admin" data-i18n="role.admin"></option>
+                </select></div>
+            </div>
+
+            <div class="grid" style="margin-top:20px;gap:12px">
+              <button class="btn" id="btnUserSave" data-i18n="adm.userSaveAdd" onclick="saveUser()"></button>
+              <button class="btn ghost" id="btnUserCancel" onclick="resetUserForm()" hidden>
+                <!-- ICON: x -->
+                <svg aria-hidden="true" class="ico"><use href="#i-x"></use></svg>
+                <span data-i18n="act.cancel"></span>
+              </button>
+            </div>
+
+            <div class="box" id="userMsg" hidden></div>
+          </div>
+
+          <div class="box info" id="userInfo" hidden></div>
+          <div class="table-wrap rt"><table id="userTable"></table></div>
+          <p class="hint" data-i18n="adm.userLinkHint"></p>
+        </div>
+        <div id="mailPrefMount"></div>
+        <div id="bkMount"></div>
+        <div id="adminToolsMount"></div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           TRANG 7 — PHIẾU KHO (chỉ admin)
+           1 phiếu = 1 NGÀY + 1 NGƯỜI YÊU CẦU + 1 LOẠI
+           ════════════════════════════════════════════════════════════ -->
+      <section class="page" id="page-ticket">
+        <h1 class="page-title" data-i18n="ticket.title"></h1>
+        <p class="page-sub" data-i18n="ticket.sub"></p>
+
+        <div class="card">
+          <div class="filters" style="margin:0">
+            <div class="field w-sm"><label data-i18n="ticket.filterFrom"></label>
+              <input type="date" id="tkFrom"></div>
+            <div class="field w-sm"><label data-i18n="ticket.filterTo"></label>
+              <input type="date" id="tkTo"></div>
+
+            <div class="field w-md"><label data-i18n="form.type"></label>
+              <select id="tkType">
+                <option value="" data-i18n="filter.inOut"></option>
+                <option value="Import" data-i18n="filter.onlyIn"></option>
+                <option value="Export" data-i18n="filter.onlyOut"></option>
+              </select></div>
+
+            <div class="field w-md"><label data-i18n="user.costCenter"></label>
+              <select id="tkCc"></select></div>
+
+            <button class="btn" onclick="loadTickets()">
+              <!-- ICON: search -->
+              <svg aria-hidden="true" class="ico"><use href="#i-search"></use></svg>
+              <span data-i18n="ticket.load"></span>
+            </button>
+
+            <button class="btn ghost" id="tkPrintAll" onclick="printAllTickets()" hidden>
+              <!-- ICON: printer -->
+              <svg aria-hidden="true" class="ico"><use href="#i-printer"></use></svg>
+              <span data-i18n="ticket.printAll"></span>
+            </button>
+          </div>
+
+          <div class="hint" data-i18n="ticket.pdfHint"></div>
+        </div>
+
+        <div class="box info" id="tkInfo" hidden></div>
+        <div id="tkList"></div>
+      </section>
+
+      <?!= include('client/features/StocktakeView'); ?>
+
+    </div>
+  </div>
+</div>
+
+<?!= include('client/app/Icons'); ?>
+<?!= include('client/app/I18n'); ?>
+<?!= include('client/app/Core'); ?>
+<?!= include('client/app/Toast'); ?>
+<?!= include('client/app/Dialog'); ?>
+<?!= include('client/app/Nav'); ?>
+<?!= include('client/app/TableSort'); ?>
+<?!= include('client/app/Embed'); ?>
+<?!= include('client/pages/OverviewStock'); ?>
+<?!= include('client/pages/History'); ?>
+<?!= include('client/pages/MyPage'); ?>
+<?!= include('client/pages/AdminAndTickets'); ?>
+<?!= include('client/features/Photo'); ?>
+<?!= include('client/features/RequestEdit'); ?>
+<?!= include('client/features/StockBox'); ?>
+<?!= include('client/features/Register'); ?>
+<?!= include('client/features/Stocktake'); ?>
+<?!= include('client/features/Backup'); ?>
+<?!= include('client/features/AdminTools'); ?>
+<?!= include('client/features/MailPref'); ?>
+<?!= include('client/features/Reports'); ?>
+<?!= include('client/features/Sku'); ?>
+<?!= include('client/features/Sims'); ?>
+<?!= include('client/features/Guide'); ?>
+
+</body>
+</html>

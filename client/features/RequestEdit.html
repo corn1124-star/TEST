@@ -1,0 +1,489 @@
+<style>
+  /* ══ SỬA YÊU CẦU — cùng giao diện form Edit transaction ở History ══ */
+  .re-card{ margin-top:var(--s-4); }
+  .re-head{ display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:var(--s-3); }
+  .re-head h3{ margin:0; font-size:var(--fs-lg); font-weight:var(--fw-semi); }
+  .re-id{
+    font-family:var(--font-mono);
+    font-size:11px; color:var(--n-500);
+  }
+
+  .re-row{
+    display:flex; flex-wrap:wrap; gap:var(--s-3);
+    margin-top:var(--s-3); align-items:flex-start;
+  }
+  .re-f{ display:flex; flex-direction:column; gap:4px; flex:0 1 160px; min-width:130px; }
+  .re-f.md{ flex:0 1 190px; }
+  .re-f.wide{ flex:1 1 320px; }
+  .re-f label{ font-size:var(--fs-sm); color:var(--n-700); }
+  .re-f input, .re-f select{
+    height:36px; padding:0 12px; width:100%;
+    border:1px solid var(--n-300); border-radius:var(--r-md);
+    background:var(--n-000); color:inherit; font-family:inherit; font-size:var(--fs-md);
+  }
+  .re-f input:focus, .re-f select:focus{ outline:2px solid var(--g-100); border-color:var(--g-500); }
+  .re-f input:disabled{ background:var(--n-100); color:var(--n-400); }
+  .re-f .re-sub{ font-size:11px; color:var(--n-400); }
+
+  .re-actions{
+    display:flex; align-items:center; gap:var(--s-2); flex-wrap:wrap;
+    margin-top:var(--s-4);
+  }
+  .re-actions .re-gap{ flex:1; }
+  .btn.re-save{ background:var(--g-600); border-color:var(--g-600); color:var(--n-000); }
+  .btn.re-save:hover{ background:var(--g-600); }
+  .btn.re-del{
+    background:var(--n-000); border-color:var(--red-bd); color:var(--red);
+  }
+  .btn.re-del:hover{ background:var(--red-bg); }
+
+  /* Nút trong cột Decision */
+  .cell-actions.re-btns{ flex-direction:row; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  /* Cảm ứng / màn hẹp: đủ cao để chạm (>=40px). Chỉ con trỏ chính xác trên màn rộng mới dùng cỡ gọn 28px. */
+  .re-btns .btn{ min-height:40px; padding:0 12px; font-size:var(--fs-sm); }
+  @media (pointer:fine) and (min-width:641px){
+    .re-btns .btn{ min-height:28px; padding:4px 12px; font-size:var(--fs-xs); }
+  }
+  @media (pointer:coarse), (max-width:640px){
+    .re-btns .btn{ min-height:40px; }
+  }
+
+  @media (max-width:640px){
+    .re-f, .re-f.md, .re-f.wide{ flex:1 1 100%; }
+    .re-f input, .re-f select{ height:40px; font-size:16px; }   /* chặn iOS tự zoom */
+    .re-actions .btn{ flex:1 1 auto; justify-content:center; }
+    .re-actions .re-gap{ display:none; }
+  }
+</style>
+
+<script>
+  /* ══════════════════════════════════════════════════════════════
+     ReqEditUI.html — SỬA / XÓA YÊU CẦU ĐANG CHỜ DUYỆT
+     ══════════════════════════════════════════════════════════════
+     Include SAU App.html. Không sửa App.html:
+       · bọc renderMyRequests() -> gắn nút Sửa / Xóa vào dòng PENDING;
+       · form sửa là 1 card chèn ngay dưới bảng yêu cầu, cùng class với
+         form Edit transaction ở History (.card.editing, .locked-row,
+         .auto-cell) nên nhìn giống hệt, không mở popup.
+     Quyền do SERVER quyết định — nút ẩn/hiện chỉ là lớp trình bày.
+     ══════════════════════════════════════════════════════════════ */
+
+  let RE_REQ     = null;     // yêu cầu đang sửa
+  let RE_OPEN_ID = '';       // requestId của form đang mở
+  let RE_FLASH   = '';       // thông báo hiện sau khi bảng vẽ lại
+  let RE_TR      = {};       // requestId -> <tr> để tô dòng đang sửa
+
+  const RE_I18N = {
+    vi: {
+      edit: 'Sửa', del: 'Xóa', title: 'Sửa yêu cầu', loading: 'Đang tải…',
+      cId: 'Mã yêu cầu', cType: 'Loại giao dịch', cCat: 'Danh mục', cSub: 'Phân nhóm',
+      cName: 'Tên hàng', cVar: 'Biến thể', cEvent: 'Event', cUnit: 'ĐVT', cReq: 'Người gửi',
+      cCode: 'Asset code',
+      lockHint: 'Các trường trên không sửa được vì chúng dùng để sinh Asset Code. Nếu sai, hãy xóa yêu cầu này và tạo yêu cầu mới.',
+      exportHint: 'Phiếu xuất: số thùng và chứng từ mua hàng lấy theo mã hàng gốc, không sửa ở đây.',
+      date: 'Ngày', qty: 'Số lượng', box: 'Số thùng', loc: 'Địa điểm',
+      po: 'PO No', inv: 'Số hóa đơn', sup: 'Nhà cung cấp', price: 'Giá mua (VND)',
+      maxQty: 'Tồn hiện tại: {n} {u}', select: '— Chọn —',
+      save: 'Lưu thay đổi', saving: 'Đang lưu…', cancel: 'Huỷ',
+      delete: 'Xóa yêu cầu', deleting: 'Đang xóa…',
+      cfSave: 'Lưu thay đổi cho yêu cầu {id}?',
+      cfDel: 'Xóa yêu cầu {id}?\n{name}\n\nThao tác này không hoàn tác được.',
+      errDate: 'Vui lòng chọn ngày.', errQty: 'Số lượng phải lớn hơn 0.',
+      errMax: 'Vượt tồn kho: chỉ còn {n}.', errLoc: 'Vui lòng chọn địa điểm.',
+      errBox: 'Số thùng phải là số nguyên từ 0 đến số lượng.',
+      errDoc: 'Vui lòng điền đủ PO No, số hóa đơn, nhà cung cấp và giá mua lớn hơn 0.',
+      error: 'Có lỗi xảy ra'
+    },
+    en: {
+      edit: 'Edit', del: 'Delete', title: 'Edit request', loading: 'Loading…',
+      cId: 'Request ID', cType: 'Transaction type', cCat: 'Category', cSub: 'Sub-category',
+      cName: 'Item name', cVar: 'Variant', cEvent: 'Event', cUnit: 'Unit', cReq: 'Requester',
+      cCode: 'Asset code',
+      lockHint: 'The fields above cannot be edited because they generate the asset code. If they are wrong, delete this request and create a new one.',
+      exportHint: 'Export requests: cartons and purchase documents follow the original item and cannot be edited here.',
+      date: 'Date', qty: 'Quantity', box: 'Cartons', loc: 'Location',
+      po: 'PO No', inv: 'Invoice no.', sup: 'Supplier', price: 'Purchase price (VND)',
+      maxQty: 'Current stock: {n} {u}', select: '— Select —',
+      save: 'Save changes', saving: 'Saving…', cancel: 'Cancel',
+      delete: 'Delete request', deleting: 'Deleting…',
+      cfSave: 'Save changes to request {id}?',
+      cfDel: 'Delete request {id}?\n{name}\n\nThis cannot be undone.',
+      errDate: 'Please pick a date.', errQty: 'Quantity must be greater than 0.',
+      errMax: 'Exceeds stock: only {n} left.', errLoc: 'Please choose a location.',
+      errBox: 'Cartons must be a whole number between 0 and the quantity.',
+      errDoc: 'Please fill PO No, invoice no., supplier and a purchase price above 0.',
+      error: 'Something went wrong'
+    }
+  };
+
+  function reT(k, p) {
+    const d = RE_I18N[(typeof LANG !== 'undefined' && LANG === 'en') ? 'en' : 'vi'];
+    let s = d[k] || k;
+    if (p) Object.keys(p).forEach(function (x) { s = s.split('{' + x + '}').join(p[x]); });
+    return s;
+  }
+
+  /* ══ 1. CARD CHÈN NGAY DƯỚI BẢNG YÊU CẦU ══ */
+  function reCardEl() {
+    let c = el('reCard');
+    if (c) return c;
+
+    const tbl = el('myReqTable');
+    if (!tbl) return null;
+
+    c = document.createElement('div');
+    c.id = 'reCard';
+    c.className = 'card editing re-card';
+    c.hidden = true;
+
+    const host = tbl.closest('.card') || tbl.closest('.sec') || tbl;
+    host.parentNode.insertBefore(c, host.nextSibling);
+    return c;
+  }
+
+  function reHead(id) {
+    return '<div class="re-head"><h3>' + reT('title') + '</h3>' +
+           '<span class="re-id">' + escapeHtml(id) + '</span></div>';
+  }
+
+  function reMarkRow() {
+    Object.keys(RE_TR).forEach(function (k) {
+      if (RE_TR[k]) RE_TR[k].classList.toggle('sel', k === RE_OPEN_ID);
+    });
+  }
+
+  function reClose() {
+    const c = el('reCard');
+    if (c) { c.hidden = true; c.innerHTML = ''; }
+    RE_OPEN_ID = '';
+    RE_REQ = null;
+    reMarkRow();
+  }
+
+  /* ══ 2. MỞ FORM ══ */
+  function reOpen(id) {
+    const c = reCardEl();
+    if (!c) return;
+
+    RE_OPEN_ID = id;
+    RE_REQ = null;
+    c.hidden = false;
+    c.innerHTML = reHead(id) + '<div class="hint"><span class="spin" aria-hidden="true"></span> ' + reT('loading') + '</div>';
+    reMarkRow();
+    c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (RE_OPEN_ID !== id) return;               // người dùng đã mở phiếu khác
+        if (!res || !res.ok) {
+          c.innerHTML = reHead(id) +
+            '<div class="box err">' + escapeHtml((res && res.message) || reT('error')) + '</div>' +
+            '<div class="re-actions"><button type="button" class="btn ghost" onclick="reClose()">' +
+              icon('x') + '<span>' + reT('cancel') + '</span></button></div>';
+          if (typeof loadMyRequests === 'function') loadMyRequests();   // phiếu có thể vừa được duyệt
+          return;
+        }
+        RE_REQ = res.req;
+        reRender();
+      })
+      .withFailureHandler(function (e) {
+        if (RE_OPEN_ID !== id) return;
+        c.innerHTML = reHead(id) + '<div class="box err">' + reT('error') + ': ' +
+                      escapeHtml(e.message || e) + '</div>';
+      })
+      .reqEditGet(id);
+  }
+
+  /* ══ 3. VẼ FORM ══ */
+  function reCell(label, val) {
+    return '<div class="auto-cell"><span>' + label + '</span><b>' +
+           escapeHtml(val == null || val === '' ? '—' : val) + '</b></div>';
+  }
+
+  function reField(id, label, input, size, sub) {
+    return '<div class="re-f' + (size ? ' ' + size : '') + '">' +
+             '<label for="' + id + '">' + label + '</label>' + input +
+             (sub ? '<div class="re-sub">' + sub + '</div>' : '') +
+           '</div>';
+  }
+
+  function reInp(id, type, val, extra) {
+    return '<input id="' + id + '" type="' + type + '" value="' +
+           escapeHtml(val == null ? '' : val) + '"' + (extra || '') + '>';
+  }
+
+  function reLocSelect(cur) {
+    const list = ((typeof CONFIG !== 'undefined' && CONFIG && CONFIG.locations) || []).slice();
+    if (cur && list.indexOf(cur) === -1) list.unshift(cur);    // giữ giá trị cũ nếu danh mục đã đổi
+    return '<select id="reLoc"><option value="">' + reT('select') + '</option>' +
+      list.map(function (v) {
+        return '<option value="' + escapeHtml(v) + '"' + (v === cur ? ' selected' : '') + '>' +
+               escapeHtml(v) + '</option>';
+      }).join('') + '</select>';
+  }
+
+  function reRender() {
+    const c = el('reCard');
+    const q = RE_REQ;
+    if (!c || !q) return;
+
+    const imp = q.type === 'Import';
+    const lockExp = imp ? '' : ' disabled';
+
+    let h = reHead(q.requestId);
+
+    h += '<div class="locked-row">' +
+      reCell(reT('cId'), q.requestId) +
+      reCell(reT('cType'), txLabel(q.type)) +
+      reCell(reT('cCat'), q.category) +
+      reCell(reT('cSub'), q.sub) +
+      reCell(reT('cName'), q.name) +
+      reCell(reT('cVar'), q.variant) +
+      reCell(reT('cEvent'), q.event) +
+      reCell(reT('cUnit'), q.unit) +
+      reCell(reT('cReq'), q.requester) +
+      (q.assetCode ? reCell(reT('cCode'), q.assetCode) : '') +
+    '</div>';
+
+    h += '<div class="hint">' + reT('lockHint') + '</div>';
+
+    h += '<div class="re-row">' +
+      reField('reDate', reT('date'), reInp('reDate', 'date', q.date)) +
+      reField('reQty', reT('qty'),
+        reInp('reQty', 'number', q.qty, ' min="1" step="any"' +
+              (q.maxQty != null ? ' max="' + q.maxQty + '"' : '')),
+        '', q.maxQty != null ? reT('maxQty', { n: num(q.maxQty), u: escapeHtml(q.unit) }) : '') +
+      reField('reBox', reT('box'), reInp('reBox', 'number', q.boxCount, ' min="0" step="1"' + lockExp)) +
+      reField('reLoc', reT('loc'), reLocSelect(q.loc), 'md') +
+    '</div>';
+
+    h += '<div class="re-row">' +
+      reField('rePo', reT('po'), reInp('rePo', 'text', q.poNo, lockExp)) +
+      reField('reInv', reT('inv'), reInp('reInv', 'text', q.invoiceNo, lockExp)) +
+      reField('reSup', reT('sup'), reInp('reSup', 'text', q.supplier, lockExp), 'wide') +
+      reField('rePrice', reT('price'), reInp('rePrice', 'number', q.price, ' min="1" step="any"' + lockExp)) +
+    '</div>';
+
+    if (!imp) h += '<div class="hint">' + reT('exportHint') + '</div>';
+
+    h += '<div class="box" id="reMsg" hidden></div>';
+
+    h += '<div class="re-actions">' +
+      '<button type="button" class="btn re-save" id="reSave" onclick="reSave()">' +
+        icon('check') + '<span>' + reT('save') + '</span></button>' +
+      '<button type="button" class="btn ghost" onclick="reClose()">' +
+        icon('x') + '<span>' + reT('cancel') + '</span></button>' +
+      '<span class="re-gap"></span>' +
+      '<button type="button" class="btn re-del" id="reDel">' + reT('delete') + '</button>' +
+    '</div>';
+
+    c.innerHTML = h;
+    el('reDel').onclick = function () { reDelete(q.requestId, el('reDel')); };
+  }
+
+  /* ══ 4. LƯU ══ */
+  function reVal(id) { const e = el(id); return e ? String(e.value || '').trim() : ''; }
+
+  function reSave() {
+    const q = RE_REQ;
+    if (!q) return;
+    const imp = q.type === 'Import';
+
+    const data = { date: reVal('reDate'), qty: reVal('reQty'), loc: reVal('reLoc') };
+    if (imp) {
+      data.boxCount  = reVal('reBox');
+      data.poNo      = reVal('rePo');
+      data.invoiceNo = reVal('reInv');
+      data.supplier  = reVal('reSup');
+      data.price     = reVal('rePrice');
+    }
+
+    // Kiểm nhanh ở client — server vẫn kiểm lại đầy đủ
+    const qty = Number(data.qty);
+    if (!data.date) { showBox('reMsg', reT('errDate'), 'err'); return; }
+    if (!(qty > 0)) { showBox('reMsg', reT('errQty'), 'err'); return; }
+    if (q.maxQty != null && qty > q.maxQty) {
+      showBox('reMsg', reT('errMax', { n: num(q.maxQty) }), 'err'); return;
+    }
+    if (!data.loc) { showBox('reMsg', reT('errLoc'), 'err'); return; }
+    if (imp) {
+      const box = Number(data.boxCount);
+      if (!(box >= 0) || Math.floor(box) !== box || box > qty) {
+        showBox('reMsg', reT('errBox'), 'err'); return;
+      }
+      if (!data.poNo || !data.invoiceNo || !data.supplier || !(Number(data.price) > 0)) {
+        showBox('reMsg', reT('errDoc'), 'err'); return;
+      }
+    }
+
+    // Xác nhận bằng hộp thoại dùng chung (app/Dialog.html), không dùng confirm() của trình duyệt
+    uiDialog({ title: reT('title'), body: reT('cfSave', { id: q.requestId }), okLabel: reT('save') }, function () {
+      const btn = el('reSave');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.innerHTML = '<span>' + reT('saving') + '</span>';
+
+      const reset = function () {
+        btn.disabled = false;
+        btn.innerHTML = icon('check') + '<span>' + reT('save') + '</span>';
+      };
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          reset();
+          if (!res || !res.ok) {
+            showBox('reMsg', escapeHtml((res && res.message) || reT('error')), 'err');
+            if (typeof loadMyRequests === 'function') loadMyRequests();
+            return;
+          }
+          if (!res.changed) { showBox('reMsg', escapeHtml(res.message), 'info'); return; }
+
+          RE_FLASH = res.message;
+          reClose();
+          if (typeof loadMyRequests === 'function') loadMyRequests();
+        })
+        .withFailureHandler(function (e) {
+          reset();
+          showBox('reMsg', reT('error') + ': ' + escapeHtml(e.message || e), 'err');
+        })
+        .reqEditSave(q.requestId, data);
+    });
+  }
+
+  /* ══ 5. XÓA ══ */
+  function reDelete(id, btn) {
+    const row = ((typeof MY_REQ !== 'undefined' && MY_REQ && MY_REQ.rows) || [])
+      .filter(function (r) { return r.requestId === id; })[0];
+    const name = row
+      ? row.name + (row.variant ? ' · ' + row.variant : '') + ' — ' + row.quantity + ' ' + row.unit
+      : '';
+
+    // Xóa không hoàn tác: hộp thoại nút đỏ, không có ô lý do
+    uiDialog({ title: reT('delete'), body: reT('cfDel', { id: id, name: name }), okLabel: reT('delete'), danger: true }, function () {
+      const oldHtml = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.textContent = reT('deleting'); }
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.ok) {
+            if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+            const m = escapeHtml((res && res.message) || reT('error'));
+            if (el('reMsg') && RE_OPEN_ID === id) showBox('reMsg', m, 'err');
+            else showBox('myReqInfo', m, 'err');
+            if (typeof loadMyRequests === 'function') loadMyRequests();
+            return;
+          }
+          if (RE_OPEN_ID === id) reClose();
+          RE_FLASH = res.message;
+          if (typeof loadMyRequests === 'function') loadMyRequests();
+        })
+        .withFailureHandler(function (e) {
+          if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+          showBox('myReqInfo', reT('error') + ': ' + escapeHtml(e.message || e), 'err');
+        })
+        .reqDelete(id);
+    });
+  }
+
+  /* ══ 6. GẮN NÚT VÀO BẢNG YÊU CẦU ══
+     Dựng lại đúng danh sách đang hiển thị (cùng bộ lọc tab của App.html) rồi
+     ghép theo thứ tự dòng. Số dòng lệch thì bỏ qua, không gắn sai phiếu. */
+  function reAttach() {
+    const res = (typeof MY_REQ !== 'undefined') ? MY_REQ : null;
+    if (!res || !res.rows) return;
+
+    // Phiếu đang sửa không còn PENDING (vừa được duyệt/xóa) -> đóng form
+    if (RE_OPEN_ID) {
+      const still = res.rows.some(function (r) {
+        return r.requestId === RE_OPEN_ID && r.status === 'PENDING';
+      });
+      if (!still) reClose();
+    }
+
+    const tab  = (typeof MY_REQ_TAB !== 'undefined') ? MY_REQ_TAB : '';
+    const rows = tab ? res.rows.filter(function (r) { return r.status === tab; }) : res.rows;
+
+    const table = el('myReqTable');
+    RE_TR = {};
+    if (!table) return;
+
+    /* ghép theo thứ tự dòng LÚC DỰNG: người dùng có thể đã sắp xếp bảng theo cột (TableSort.html) */
+    const trs = typeof tsOriginalRows === 'function' ? tsOriginalRows(table) : table.querySelectorAll('tbody tr');
+    if (trs.length === rows.length) {
+      rows.forEach(function (r, i) {
+        if (r.status !== 'PENDING' || !r.requestId) return;
+
+        RE_TR[r.requestId] = trs[i];
+        const td = trs[i].lastElementChild;
+        if (!td || td.querySelector('.re-btns')) return;
+
+        // Ô này còn chữ "Chờ duyệt…" nên đánh dấu .has-text: CSS thẻ (.rt) không coi là ô chỉ có nút, giữ nhãn "Kết quả xử lý"
+        td.classList.add('has-text');
+        const box = document.createElement('div');
+        box.className = 'cell-actions re-btns';
+
+        const bEdit = document.createElement('button');
+        bEdit.type = 'button';
+        bEdit.className = 'btn ghost';
+        bEdit.textContent = '\u270E ' + reT('edit');
+        bEdit.onclick = function (ev) { ev.stopPropagation(); reOpen(r.requestId); };
+
+        const bDel = document.createElement('button');
+        bDel.type = 'button';
+        bDel.className = 'btn re-del';
+        bDel.textContent = reT('del');
+        bDel.onclick = function (ev) { ev.stopPropagation(); reDelete(r.requestId, bDel); };
+
+        box.appendChild(bEdit);
+        box.appendChild(bDel);
+        td.appendChild(box);
+      });
+    }
+
+    reMarkRow();
+
+    if (RE_FLASH) {
+      showBox('myReqInfo', escapeHtml(RE_FLASH), 'ok');
+      RE_FLASH = '';
+    }
+  }
+
+  (function () {
+    /* Cách 1: bọc hàm vẽ bảng */
+    if (typeof renderMyRequests === 'function') {
+      const _render = renderMyRequests;
+      renderMyRequests = function () {
+        const out = _render.apply(this, arguments);
+        reAttach();
+        return out;
+      };
+    }
+
+    /* Cách 2 (dự phòng): theo dõi bảng, hễ bảng vẽ lại là gắn nút.
+       Chạy được cả khi file khác (MePage.html…) tự vẽ bảng theo cách riêng. */
+    let timer = null, busy = false;
+    function schedule() {
+      if (busy) return;
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        busy = true;
+        try { reAttach(); } finally { busy = false; }
+      }, 80);
+    }
+
+    function watch() {
+      const tbl = el('myReqTable');
+      if (!tbl || !window.MutationObserver) return false;
+      new MutationObserver(schedule).observe(tbl, { childList: true, subtree: true });
+      schedule();
+      return true;
+    }
+
+    let tries = 0;
+    (function boot() {
+      if (watch()) return;
+      if (++tries < 20) setTimeout(boot, 400);
+    })();
+  })();
+</script>
+

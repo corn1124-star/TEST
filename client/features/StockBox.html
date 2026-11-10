@@ -1,0 +1,215 @@
+<style>
+  /* ══ MŨI TÊN XEM CHI TIẾT THÙNG ══ */
+  .bx-tog{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; margin-right:8px; padding:0;
+    border:1px solid var(--n-300); border-radius:var(--r-sm);
+    background:var(--n-000); color:var(--n-500);
+    font-size:11px; line-height:1; cursor:pointer; vertical-align:middle;
+    transition:transform .15s ease, background .15s ease;
+  }
+  .bx-tog:hover{ background:var(--n-050); color:var(--n-900); }
+  .bx-tog.on{
+    transform:rotate(90deg);
+    background:var(--g-050); border-color:var(--color-board);
+    color:var(--g-700);
+  }
+
+  tr.bx-row > td{ padding:0 !important; background:var(--n-025); }
+  tr.bx-row:hover{ background:transparent !important; }
+  .bx-wrap{
+    margin:8px 12px 12px auto; max-width:460px; padding:12px 12px;
+    border:1px solid var(--n-200); border-radius:var(--r-md);
+    background:var(--n-000);
+  }
+  .bx-wrap table{ width:100%; border-collapse:collapse; }
+  .bx-wrap th, .bx-wrap td{
+    padding:4px 8px !important; font-size:var(--fs-xs); white-space:nowrap;
+    border-bottom:1px solid var(--n-100);
+  }
+  .bx-wrap th{
+    position:static; background:transparent; font-size:11px; color:var(--n-400);
+  }
+  .bx-wrap td.n, .bx-wrap th.n{ text-align:right; font-variant-numeric:tabular-nums; }
+  .bx-wrap tr.bx-empty td{ color:var(--n-400); }
+  .bx-wrap tfoot td{ font-weight:var(--fw-semi); border-bottom:none; }
+  .bx-msg{ font-size:var(--fs-xs); color:var(--n-500); }
+  .bx-msg.err{ color:var(--red); }
+    /* Cột mũi tên ở cuối bảng */
+  th.bx-col, td.bx-col{ width:44px; text-align:center; padding-left:4px !important; padding-right:12px !important; }
+  td.bx-col .bx-tog{ margin-right:0; }
+
+</style>
+
+<script>
+  /* ══════════════════════════════════════════════════════════════
+     StockBoxUI.html — NÚT ▸ Ở CỘT CARTONS, MỞ CHI TIẾT TỪNG THÙNG
+     ══════════════════════════════════════════════════════════════
+     Include SAU App.html. Không sửa App.html:
+       · bọc renderStock() -> sau mỗi lần vẽ bảng, gắn nút ▸ vào ô Cartons
+         của các mã có thùng, và tự mở lại các mã đang mở;
+       · bọc reloadData() -> xoá cache để số còn lại luôn mới sau nhập/xuất.
+     Dữ liệu lấy từ getBoxBreakdown() (StockBox.gs) — chỉ đọc BoxDetail.
+     ══════════════════════════════════════════════════════════════ */
+
+  const BX_CACHE = {};        // code -> rows đã tải
+  const BX_OPEN  = {};        // code -> true, giữ trạng thái mở khi bảng vẽ lại
+
+  function bxLang(vi, en) { return (typeof LANG !== 'undefined' && LANG === 'en') ? en : vi; }
+
+  /** Vị trí cột Cartons: tìm theo tiêu đề, không có thì dùng cột thứ 11. */
+  function bxColIndex(table) {
+    const label = (typeof t === 'function') ? t('col.boxIn') : '';
+    const ths = table.querySelectorAll('thead th');
+    for (let i = 0; i < ths.length; i++) {
+      if (label && ths[i].textContent.trim() === label) return i;
+    }
+    return 10;
+  }
+
+  function bxHtml(rows) {
+    if (!rows.length) {
+      return '<div class="bx-msg">' +
+        bxLang('Mã này chưa có chi tiết thùng.', 'No carton detail for this item.') + '</div>';
+    }
+
+    let tIn = 0, tOut = 0, tLeft = 0;
+    const body = rows.map(function (b) {
+      tIn += b.qtyIn; tOut += b.out; tLeft += b.left;
+      return '<tr' + (b.left <= 0 ? ' class="bx-empty"' : '') + '>' +
+        '<td>' + b.boxNo + (b.boxCode
+          ? ' <span class="cell-sub mono">' + escapeHtml(b.boxCode) + '</span>' : '') + '</td>' +
+        '<td class="n">' + num(b.qtyIn) + '</td>' +
+        '<td class="n">' + num(b.out) + '</td>' +
+        '<td class="n"><b>' + num(b.left) + '</b></td>' +
+      '</tr>';
+    }).join('');
+
+    return '<table data-no-cards><thead><tr>' +
+        '<th>' + bxLang('Thùng', 'Carton') + '</th>' +
+        '<th class="n">' + bxLang('Nhập', 'In') + '</th>' +
+        '<th class="n">' + bxLang('Đã xuất', 'Out') + '</th>' +
+        '<th class="n">' + bxLang('Còn lại', 'Left') + '</th>' +
+      '</tr></thead><tbody>' + body + '</tbody>' +
+      '<tfoot><tr><td>' + bxLang('Tổng', 'Total') + '</td>' +
+        '<td class="n">' + num(tIn) + '</td>' +
+        '<td class="n">' + num(tOut) + '</td>' +
+        '<td class="n">' + num(tLeft) + '</td></tr></tfoot></table>';
+  }
+
+  /** Mở/đóng dòng chi tiết ngay dưới dòng hàng. */
+  function bxToggle(tr, code, btn, forceOpen) {
+    const next = tr.nextElementSibling;
+    const isOpen = next && next.classList.contains('bx-row');
+
+    if (isOpen && !forceOpen) {
+      next.remove();
+      btn.classList.remove('on');
+      delete BX_OPEN[code];
+      return;
+    }
+    if (isOpen) return;
+
+    BX_OPEN[code] = true;
+    btn.classList.add('on');
+
+    const row = document.createElement('tr');
+    row.className = 'bx-row';
+    const td = document.createElement('td');
+    td.colSpan = tr.cells.length;
+    td.innerHTML = '<div class="bx-wrap"><div class="bx-msg">' +
+                   bxLang('Đang tải…', 'Loading…') + '</div></div>';
+    row.appendChild(td);
+    tr.parentNode.insertBefore(row, tr.nextSibling);
+
+    const wrap = td.firstChild;
+
+    if (BX_CACHE[code]) { wrap.innerHTML = bxHtml(BX_CACHE[code]); return; }
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) {
+          wrap.innerHTML = '<div class="bx-msg err">' +
+            escapeHtml((res && res.message) || 'Error') + '</div>';
+          return;
+        }
+        BX_CACHE[code] = res.rows || [];
+        wrap.innerHTML = bxHtml(BX_CACHE[code]);
+      })
+      .withFailureHandler(function (e) {
+        wrap.innerHTML = '<div class="bx-msg err">' + escapeHtml(e.message || e) + '</div>';
+      })
+      .getBoxBreakdown(code);
+  }
+
+  /** Gắn nút ▸ vào ô Cartons của mọi dòng có thùng. */
+    /** Thêm 1 cột cuối bảng, gắn nút ▸ cho mọi dòng có thùng. */
+  function bxAttach() {
+    const table = el('stockTable');
+    if (!table) return;
+
+    const col = bxColIndex(table);              // cột Cartons received, để đọc số thùng
+
+    // Tiêu đề cột mới (renderStock vẽ lại thead mỗi lần nên phải thêm lại)
+    const headTr = table.querySelector('thead tr');
+    if (headTr && !headTr.querySelector('th.bx-col')) {
+      const th = document.createElement('th');
+      th.className = 'bx-col';
+      headTr.appendChild(th);
+    }
+
+    table.querySelectorAll('tbody tr').forEach(function (tr) {
+      if (tr.classList.contains('bx-row')) return;
+      if (tr.querySelector('td.bx-col')) return;
+
+      // Dòng "không có dữ liệu" (colspan): nới colspan cho khớp cột mới
+      if (tr.cells.length === 1) {
+        tr.cells[0].colSpan = (tr.cells[0].colSpan || 1) + 1;
+        return;
+      }
+
+      const td = document.createElement('td');
+      td.className = 'bx-col';
+      tr.appendChild(td);
+
+      const code  = (tr.cells[1] && tr.cells[1].textContent || '').trim();
+      const boxes = Number(String((tr.cells[col] || {}).textContent || '').replace(/[^\d]/g, '')) || 0;
+      if (!code || !boxes) return;              // mã không quản lý theo thùng -> ô trống
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bx-tog';
+      btn.innerHTML = '&#9654;';
+      btn.title = bxLang('Xem chi tiết từng thùng', 'Show carton breakdown');
+      btn.onclick = function (ev) { ev.stopPropagation(); bxToggle(tr, code, btn, false); };
+      td.appendChild(btn);
+
+      if (BX_OPEN[code]) bxToggle(tr, code, btn, true);   // giữ trạng thái khi lọc/tìm
+    });
+  }
+
+
+  (function () {
+    if (typeof renderStock === 'function') {
+      const _render = renderStock;
+      renderStock = function () {
+        const out = _render.apply(this, arguments);
+        bxAttach();
+        return out;
+      };
+    }
+
+    // Sau nhập/xuất/sửa, số còn lại đổi -> bỏ cache để lần mở sau tải mới
+    if (typeof reloadData === 'function') {
+      const _reload = reloadData;
+      reloadData = function () {
+        Object.keys(BX_CACHE).forEach(function (k) { delete BX_CACHE[k]; });
+        return _reload.apply(this, arguments);
+      };
+    }
+
+    // Bảng đã vẽ trước khi file này nạp -> gắn ngay
+    if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', bxAttach);
+    else bxAttach();
+  })();
+</script>

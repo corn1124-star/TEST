@@ -1,0 +1,1064 @@
+<script>
+  /* ============================================================
+     APP.HTML — PHẦN 2 / 3 : CORE JS
+     ============================================================
+     State toàn cục · landing · phân quyền UI
+     · vòng khởi động · router (9 trang, gom thành tab ở Nav.html) · chuông thông báo
+     · tiện ích dùng chung (el, fmt, num, showBox, headRow, kpiCard…)
+     ============================================================ */
+
+  /* ══════════════════════════════════════════════════════════════
+     STATE TOÀN CỤC
+     ══════════════════════════════════════════════════════════════ */
+  let SESSION = null;        // { email, username, cc, department, role }
+  let CONFIG  = null;        // { categories, tree, locations, units, variantSubs, lowStock }
+  let HOME    = { txCount: 0, impTx: 0, expTx: 0, days: [] };   // số liệu tổng quan do server tính
+  let FILTERS = { pics: [], ccs: [] };                           // danh sách người dùng / cost center cho bộ lọc
+  let PENDING_N = 0;                                             // số yêu cầu chờ duyệt (admin) / của tôi (staff)
+  let STOCK   = [];          // tồn kho gom theo Asset Code
+  let SCOPE   = '';          // 'ALL' hoặc mã Cost Centre
+
+  let IS_ADMIN = false;      // chỉ dùng để TRÌNH BÀY, KHÔNG dùng để bảo mật
+  let PAGE = 'home';         // trang đang mở (id của <section id="page-…">)
+
+  let LOW = 5;               // ngưỡng sắp hết — server gửi qua config.lowStock
+
+  let TX_TYPE = '';          // 'Import' | 'Export' | ''
+  let STOCK_TAB = '';        // '' | 'in' | 'attn' | 'low' | 'out'
+
+  let BOX_N = 0;             // số thùng đang khai ở form nhập
+
+  let H_DATA = null;         // kết quả getTransactions gần nhất
+  let EDIT_ROW = null;       // dòng Sheet đang sửa
+
+  let NOTI_DATA = null;      // dữ liệu chuông (nơi DUY NHẤT đọc thông báo)
+  let NOTI_UNREAD_ONLY = true;
+
+  let PENDING = [];          // yêu cầu chờ duyệt (admin)
+  let MY_REQ = null;         // yêu cầu của tôi (staff)
+  let MY_REQ_TAB = '';
+  let USERS = [];            // danh sách người dùng (admin)
+  let USER_FILTER = '';
+  let EDIT_USER_ROW = null;
+  let TICKETS = null;        // kết quả getTickets
+
+  let PICK_ROW = null;       // dòng đang chọn ở bảng xuất kho
+  let POLL_TIMER = null;
+
+  /* ══════════════════════════════════════════════════════════════
+     TIỆN ÍCH DOM
+     ══════════════════════════════════════════════════════════════ */
+  function el(id) { return document.getElementById(id); }
+  function show(id) { const e = el(id); if (e) e.hidden = false; }
+  function hide(id) { const e = el(id); if (e) { e.hidden = true; waitRelease_(e); } }
+  function setText(id, v) { const e = el(id); if (e) e.textContent = v; }
+  function setHtml(id, v) { const e = el(id); if (e) e.innerHTML = v; }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /** Số có dấu phân cách nghìn. Giữ dấu âm để tồn âm hiện rõ. */
+  function num(n) {
+    const v = Number(n) || 0;
+    return v.toLocaleString(LANG === 'en' ? 'en-US' : 'vi-VN');
+  }
+
+  /** ISO yyyy-mm-dd -> dd/mm/yyyy */
+  function fmt(iso) {
+    if (!iso || String(iso).indexOf('-') === -1) return String(iso || '—');
+    const p = String(iso).split('-');
+    return p[2] + '/' + p[1] + '/' + p[0];
+  }
+
+  function today() {
+    const d = new Date();
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) +
+           '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  function daysAgo(n) {
+    const d = new Date(Date.now() - n * 86400000);
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) +
+           '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  function icon(name) {
+    return '<svg aria-hidden="true" class="ico"><use href="#i-' + name + '"></use></svg>';
+  }
+
+  function showBox(id, html, cls) {
+    const e = el(id);
+    if (!e) return;
+    if (!/\bwait\b/.test(cls || '')) waitRelease_(e);        // kết quả (hoặc lỗi) về: nhả bảng đang chờ
+    e.className = 'box ' + (cls || 'info');
+    e.setAttribute('role', cls === 'err' ? 'alert' : 'status');
+    e.innerHTML = html;
+    e.hidden = false;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     CHỜ LẤY DỮ LIỆU
+     showWait(hộpThôngTin, bảng?, sốCột?): vòng quay + "Đang tải dữ liệu…" trong hộp thông tin.
+       · Bảng chưa có dòng nào (lần đầu): dựng dòng mờ giữ chỗ để bảng không nhảy.
+       · Bảng đang có dữ liệu (tải lại): giữ nguyên, chỉ làm mờ và khoá chạm.
+       · Sau 6 giây thêm dòng báo máy chủ chậm.
+     Không cần gọi lệnh kết thúc: khi showBox ghi kết quả hay lỗi vào cùng hộp (hoặc hide), bảng tự được nhả.
+     ══════════════════════════════════════════════════════════════ */
+  const WAIT_SLOW_MS = 6000;
+  const SK_WIDTHS = [46, 78, 62, 90, 54, 70, 38, 84];
+
+  function waitRelease_(e) {
+    e._waitTok = null;
+    if (!e._waitTable) return;
+    const tb = el(e._waitTable);
+    e._waitTable = null;
+    if (!tb) return;
+    tb.classList.remove('busy');
+    tb.removeAttribute('aria-busy');
+    const sk = tb.querySelector('.sk-body');
+    if (sk) sk.remove();
+  }
+
+  function waitTable_(tableId, cols) {
+    const tb = el(tableId);
+    if (!tb) return;
+    if (tb.rows.length) { tb.classList.add('busy'); tb.setAttribute('aria-busy', 'true'); return; }
+
+    let rows = '';
+    for (let r = 0; r < 6; r++) {
+      rows += '<tr>';
+      for (let c = 0; c < cols; c++) {
+        rows += '<td><span class="sk" style="width:' + SK_WIDTHS[(r * 3 + c * 5) % SK_WIDTHS.length] + '%"></span></td>';
+      }
+      rows += '</tr>';
+    }
+    tb.innerHTML = '<tbody class="sk-body" aria-hidden="true">' + rows + '</tbody>';
+  }
+
+  function showWait(id, tableId, cols) {
+    const e = el(id);
+    if (!e) return;
+    waitRelease_(e);
+
+    showBox(id, '<span class="spin" aria-hidden="true"></span><span>' + escapeHtml(t('msg.loading')) + '</span>', 'info wait');
+
+    const tok = e._waitTok = {};
+    if (tableId) { e._waitTable = tableId; waitTable_(tableId, cols || 6); }
+
+    setTimeout(function () {
+      if (e._waitTok !== tok || e.hidden || !e.classList.contains('wait')) return;
+      e.insertAdjacentHTML('beforeend', '<span class="wait-slow">' + escapeHtml(t('msg.loadingSlow')) + '</span>');
+    }, WAIT_SLOW_MS);
+  }
+
+  /** Đổ option cho <select>. blank = nhãn dòng đầu (giá trị rỗng). */
+  function fill(id, arr, blank) {
+    const s = el(id);
+    if (!s) return;
+
+    const keep = s.value;
+    s.innerHTML = '';
+
+    if (blank != null) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = blank;
+      s.appendChild(o);
+    }
+
+    (arr || []).forEach(function (v) {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      s.appendChild(o);
+    });
+
+    if (keep && (arr || []).indexOf(keep) !== -1) s.value = keep;
+  }
+
+  /** Hàng tiêu đề bảng từ mảng key i18n. Key rỗng -> ô trống (cột nút). */
+  function headRow(keys) {
+    const thead = document.createElement('thead');
+    const tr = document.createElement('tr');
+
+    keys.forEach(function (k) {
+      const th = document.createElement('th');
+      th.textContent = k ? t(k) : '';
+      tr.appendChild(th);
+    });
+
+    thead.appendChild(tr);
+    return thead;
+  }
+
+  /**
+   * Dòng "trống" có hướng dẫn. cta = { label, onclick } -> hiện nút việc nên làm tiếp theo.
+   * Trang trống mà không nói người dùng làm gì là một điểm gây lạc đường.
+   */
+  function emptyRow(colspan, msg, cta) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = colspan;
+    td.className = 'empty';
+    td.innerHTML = '<div class="empty-state"><b>' + escapeHtml(msg) + '</b>' +
+      (cta ? '<button class="btn" onclick="' + cta.onclick + '">' + escapeHtml(cta.label) + '</button>' : '') + '</div>';
+    tr.appendChild(td);
+    return tr;
+  }
+  /** Thẻ KPI. o = {ico, tone, label, value, foot, onClick} */
+  function kpiCard(o) {
+    return '<div class="kpi ' + (o.tone || '') + (o.onClick ? ' tap' : '') + '"' +
+      (o.onClick ? ' onclick="' + o.onClick + '"' : '') + '>' +
+      '<div class="kpi-head">' + icon(o.ico || 'box') +
+        '<span class="kpi-label">' + o.label + '</span></div>' +
+      '<div class="kpi-value">' + o.value + '</div>' +
+      '<div class="kpi-foot">' + (o.foot || '') + '</div>' +
+    '</div>';
+  }
+
+  /** Badge mức tồn. Ngưỡng sắp hết = LOW (server gửi xuống). */
+  function stockBadge(stock) {
+    if (stock < 0)   return { cls: 'neg',    label: t('st.negStock') };
+    if (stock === 0) return { cls: 'danger', label: t('st.outStock') };
+    if (stock <= LOW) return { cls: 'warn',  label: t('st.lowStock') };
+    return { cls: 'ok', label: t('st.inStock') };
+  }
+
+  function reqBadge(status) {
+    if (status === 'APPROVED') return { cls: 'ok',     label: t('st.approved') };
+    if (status === 'REJECTED') return { cls: 'danger', label: t('st.rejected') };
+    return { cls: 'pending', label: t('st.pending') };
+  }
+
+  /** Nhãn loại giao dịch — dùng chung mọi bảng để luôn nhất quán. */
+  function txLabel(type) {
+    return type === 'Import' ? t('tx.import') : t('tx.export');
+  }
+
+  /**
+   * Bảng giải nghĩa 6 phân đoạn Asset Code.
+   * Dùng ở form nhập kho (#codeParts).
+   *
+   * @param parts mảng {key, seg, src} từ server, hoặc object codeParts
+   */
+  function renderCodeParts(targetId, parts) {
+    const box = el(targetId);
+    if (!box) return;
+
+    if (!parts || !parts.length) { box.innerHTML = ''; return; }
+
+    box.innerHTML = parts.map(function (p) {
+      const empty = !p.seg;
+      return '<div class="cpart' + (p.key === 'seq' ? ' seq' : '') + '">' +
+        '<div class="cpart-key">' + t('cpart.' + p.key) + '</div>' +
+        '<div class="cpart-seg' + (empty ? ' empty' : '') + '">' +
+          (empty ? '—' : escapeHtml(p.seg)) + '</div>' +
+        '<div class="cpart-src" title="' + escapeHtml(p.src || '') + '">' +
+          (p.src ? escapeHtml(p.src) : (empty ? t('cpart.none') : '')) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     XUẤT CSV
+     ══════════════════════════════════════════════════════════════ */
+  function csvCell(v) {
+    let s = String(v == null ? '' : v);
+    /* Chống CSV injection: ô chữ bắt đầu bằng = + - @ tab CR thì Excel chạy như công thức -> thêm ' đầu. Kiểu số và chuỗi số thuần (vd -5) giữ nguyên. */
+    if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s) && !/^[+-]?\d+([.,]\d+)?$/.test(s)) s = "'" + s;
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  /** BOM \ufeff bắt buộc để Excel đọc đúng tiếng Việt. */
+  function downloadCsv(filename, lines) {
+    const blob = new Blob(['\ufeff' + lines.join('\n')],
+                          { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     ĐỔI NGÔN NGỮ
+     ══════════════════════════════════════════════════════════════
+     Đổi LANG rồi vẽ lại MỌI thứ đang hiện — kể cả bảng và biểu đồ đã
+     render, vì nội dung của chúng do JS sinh nên applyI18n() không chạm tới.
+     ══════════════════════════════════════════════════════════════ */
+  function toggleLang() {
+    LANG = (LANG === 'vi') ? 'en' : 'vi';
+    try { localStorage.setItem('gim_lang', LANG); } catch (e) {}
+
+    applyI18n();
+    refillAllSelects();
+    applyRoleUi();
+
+    if (SESSION) {
+      renderIdentity();
+      if (TX_TYPE) setText('aType', txLabel(TX_TYPE));      // giá trị gán một lần ở setTxType: phải dịch lại theo ngôn ngữ
+      renderHome();
+      renderStock();
+      if (TX_TYPE === 'Export') renderPickTable();
+      if (TX_TYPE === 'Import') { previewCode(); renderBoxGrid(); }
+      if (H_DATA) renderHistory();
+      if (NOTI_DATA) renderNoti();
+      if (MY_REQ) renderMyRequests();
+      if (PENDING.length) renderApproval();
+      if (USERS.length) renderUsers();
+      if (TICKETS) renderTickets();
+      if (typeof skuRender === 'function') skuRender();
+    }
+  }
+
+  /** Đổ lại mọi dropdown động sau khi đổi ngôn ngữ (nhãn "Tất cả" đổi theo). */
+  function refillAllSelects() {
+    if (!CONFIG) return;
+
+    fill('iCategory', CONFIG.categories, t('form.select'));
+    fill('iUnit', CONFIG.units, null);
+    fill('iLocation', CONFIG.locations, t('form.select'));
+    fill('edLocation', CONFIG.locations, t('form.select'));
+    fill('hCat', CONFIG.categories, t('filter.allCats'));
+    fill('ePickCat', CONFIG.categories, t('filter.allCats'));
+    fill('kFilterCat', CONFIG.categories, t('filter.allCats'));
+    fill('kFilterLoc', uniqueLocs(), t('filter.allLocs'));
+    fill('hUser', uniqueUsers(), t('filter.allUsers'));
+    fill('tkCc', uniqueCcs(), t('filter.allCcs'));
+
+    onCatChange();
+    if (typeof importOwnerFill === 'function') importOwnerFill();
+  }
+
+  function uniqueLocs() {
+    const set = {};
+    STOCK.forEach(function (s) { if (s.mainLoc && s.mainLoc !== '—') set[s.mainLoc] = 1; });
+    return Object.keys(set).sort();
+  }
+
+  function uniqueUsers() { return (FILTERS.pics || []).slice(); }
+
+  function uniqueCcs() { return (FILTERS.ccs || []).slice(); }
+
+  /* ══════════════════════════════════════════════════════════════
+     LANDING — chờ thật chỉ có MỘT bước
+     bootstrapAll xác thực tài khoản và tải dữ liệu trong cùng một lần gọi server, nên chỉ có một
+     dòng trạng thái, một thanh chạy và số giây đã chờ. Không dựng danh sách bước giả.
+     Vòng quay dừng khi người dùng giảm chuyển động; số giây vẫn đổi nên trạng thái vẫn đọc được.
+     ══════════════════════════════════════════════════════════════ */
+  let LAND_T0 = 0;
+  let LAND_TICK = null;
+  let LAND_FUN = null, LAND_FUN_N = 0;
+  Object.assign(I18N.vi, { 'land.fun1': 'Tài xế đang chạy đến kho…', 'land.fun2': 'Đang nhận đơn dữ liệu của bạn…', 'land.fun3': 'Đang bốc hàng lên xe…', 'land.fun4': 'Đang giao tồn kho đến bạn…', 'land.fun5': 'Sắp tới nơi rồi, đợi xíu nhé!' });
+  Object.assign(I18N.en, { 'land.fun1': 'Your driver is heading to the warehouse…', 'land.fun2': 'Picking up your data order…', 'land.fun3': 'Loading boxes onto the bike…', 'land.fun4': 'Delivering your stock numbers…', 'land.fun5': 'Almost there, hang tight!' });
+
+  function landPhase(key) {
+    const e = el('landSub');
+    if (!e) return;
+    e.setAttribute('data-i18n', key);      // đổi ngôn ngữ giữa chừng vẫn dịch đúng câu đang hiện
+    e.textContent = t(key);
+  }
+
+  function landStart() {
+    LAND_T0 = Date.now();
+    landPhase('land.connect');
+    /* dòng vui xoay vòng cho đỡ chán; dòng trạng thái thật (landSub) vẫn đứng riêng và đúng sự thật */
+    LAND_FUN_N = Math.floor(Math.random() * 5);
+    function fun() { setText('landFun', t('land.fun' + (LAND_FUN_N++ % 5 + 1))); }
+    fun();
+    LAND_FUN = setInterval(fun, 2400);
+    LAND_TICK = setInterval(function () {
+      const s = Math.floor((Date.now() - LAND_T0) / 1000);
+      if (s >= 3) setText('landWait', t('land.wait').replace('{n}', s));
+    }, 1000);
+  }
+
+  function landStop() {
+    clearInterval(LAND_TICK);
+    LAND_TICK = null;
+    clearInterval(LAND_FUN);
+    LAND_FUN = null;
+    setText('landFun', '');
+  }
+
+  function landDone() {
+    landStop();
+    setText('landWait', '');
+    landPhase('land.done');
+
+    const spin = el('landSpin');
+    if (spin) spin.classList.remove('run');         // vòng khép kín = xong
+
+    const app = document.querySelector('.layout');
+    if (app) app.removeAttribute('inert');           // app chỉ nhận phím và chạm sau khi màn hình chờ khép lại
+
+    setTimeout(function () {
+      const l = el('landing');
+      if (l) l.classList.add('gone');
+      setTimeout(function () { if (l) l.hidden = true; }, 450);
+    }, 300);
+  }
+
+  function landError(msg) {
+    landStop();
+    hide('landLoading');
+    show('landError');
+    setText('landErrMsg', msg || t('msg.error'));
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     SIDEBAR
+     ══════════════════════════════════════════════════════════════ */
+  function toggleRail() {
+    const sb = el('sidebar');
+    if (!sb) return;
+
+    sb.classList.toggle('rail');
+    const isRail = sb.classList.contains('rail');
+
+    try { localStorage.setItem('gim_rail', isRail ? '1' : '0'); } catch (e) {}
+
+    const btn = el('railBtn');
+    if (btn) btn.title = t(isRail ? 'nav.expand' : 'nav.collapse');
+  }
+
+  function toggleSidebarMobile() {
+    const sb = el('sidebar');
+    if (sb) sb.classList.toggle('open');
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     PHÂN QUYỀN GIAO DIỆN
+     ══════════════════════════════════════════════════════════════
+     LƯU Ý: ĐÂY CHỈ LÀ LỚP TRÌNH BÀY. Bảo mật thật nằm ở server (Code.gs):
+       requireAdmin_() ở mọi API quản trị · codeVisible_() cho phạm vi dữ liệu.
+     Người dùng có thể sửa DOM để hiện nút admin, nhưng gọi API vẫn bị chặn.
+
+     .admin-menu  -> hiện cho admin
+     .member-menu -> hiện cho staff
+     .admin-gate  -> CHỈ gỡ data-locked, KHÔNG tự gỡ hidden.
+                     hidden chỉ gỡ trong openEdit() sau canUseAdminUi().
+     ══════════════════════════════════════════════════════════════ */
+  function applyRoleUi() {
+    document.querySelectorAll('.admin-menu').forEach(function (e) {
+      e.hidden = !IS_ADMIN;
+    });
+    document.querySelectorAll('.member-menu').forEach(function (e) {
+      e.hidden = IS_ADMIN;
+    });
+
+    document.querySelectorAll('.admin-gate').forEach(function (e) {
+      if (IS_ADMIN) e.removeAttribute('data-locked');
+      else { e.setAttribute('data-locked', ''); e.hidden = true; }
+    });
+
+    document.querySelectorAll('.role-note').forEach(function (e) {
+      e.hidden = IS_ADMIN;
+    });
+
+    /* My Page giờ mở cho CẢ admin. Gỡ ẩn sau 2 vòng lặp trên, nên không cần
+       biết thẻ đó đang mang class .member-menu hay gì trong Index.html. */
+    const meNav = document.querySelector('.nav-item[data-page="me"]');
+    if (meNav) meNav.hidden = false;
+    const mePage = el('page-me');
+    if (mePage) mePage.hidden = false;
+
+    setText('btnImport', IS_ADMIN ? t('kho.doImport') : t('kho.submitImport'));
+  }
+
+
+  /** Chốt chặn client trước khi mở UI quản trị. Server vẫn kiểm lại. */
+  function canUseAdminUi() {
+    if (IS_ADMIN) return true;
+    toast(t('msg.needAdmin'), 'err');
+    return false;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     VÒNG KHỞI ĐỘNG — 1 round-trip duy nhất
+     ══════════════════════════════════════════════════════════════ */
+  function boot() {
+    try {
+      const savedLang = localStorage.getItem('gim_lang');
+      if (savedLang === 'vi' || savedLang === 'en') LANG = savedLang;
+
+      if (localStorage.getItem('gim_rail') === '1') {
+        const sb = el('sidebar');
+        if (sb) sb.classList.add('rail');
+      }
+    } catch (e) {}
+
+    applyI18n();
+    landStart();
+
+    const slowTimer = setTimeout(function () { show('landSlow'); }, 6000);
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        clearTimeout(slowTimer);
+        if (res && res.perf) console.log('[perf] server', res.perf, 'client ms since boot', Math.round(performance.now()));
+
+        if (!res || !res.ok) {
+          landError((res && res.message) || t('msg.error'));
+          return;
+        }
+
+        landPhase('land.render');
+
+        SESSION  = res.session;
+        CONFIG   = res.config;
+        IS_ADMIN = (SESSION.role === 'admin');
+        LOW      = Number(CONFIG.lowStock) || 5;
+
+        applyData(res.data);
+        PENDING_N = res.pendingCount || 0;
+        setText('sbSrc', t(res.backend === 'SHEETS' ? 'src.sheets' : 'src.bq'));
+
+        renderIdentity();
+        applyRoleUi();
+        refillAllSelects();
+        setDefaultDates();
+
+        renderHome();
+        renderStock();
+
+        updateBadges(res.pendingCount || 0, 0);
+        loadNoti(true);
+        startPolling();
+
+        navBoot_();                                                        // Back/F5: khôi phục trang theo hash (nếu có)
+        landDone();
+        if (typeof embedStart === 'function') embedStart();                // nhúng Google Sites (Embed.html)
+        if (typeof guideMaybeStart === 'function') guideMaybeStart();      // giới thiệu lần đầu (Guide.html)
+      })
+      .withFailureHandler(function (e) {
+        clearTimeout(slowTimer);
+        landError((e && e.message) || String(e));
+      })
+      .bootstrapAll();
+  }
+
+  function setDefaultDates() {
+    const d = today();
+    ['iDate', 'hTo', 'tkTo'].forEach(function (id) {
+      const e = el(id); if (e && !e.value) e.value = d;
+    });
+
+    const w = daysAgo(7);
+    ['hFrom', 'tkFrom'].forEach(function (id) {
+      const e = el(id); if (e && !e.value) e.value = w;
+    });
+  }
+
+  function renderIdentity() {
+    const u = SESSION;
+    if (!u) return;
+
+    const initials = (u.username || '?').split(/[.\s_-]+/)
+      .filter(function (x) { return x; })
+      .slice(0, 2).map(function (x) { return x[0].toUpperCase(); }).join('');
+
+    setText('avatar', initials || '?');
+    setText('userName', u.username);
+    setText('userCc', u.cc);
+
+    setText('ubName', u.username);
+    setText('ubMail', u.email);
+    setText('ubCc', u.cc);
+    setText('ubDept', u.department);
+    setText('ubRole', IS_ADMIN ? t('role.admin') : t('role.member'));
+
+    setText('aCc', u.cc);
+    setText('aDept', u.department);
+    setText('aPic', u.username);
+
+    setText('meName', u.username);
+    setText('meMail', u.email);
+    setText('meCc', u.cc);
+    setText('meDept', u.department);
+    setText('meRole', IS_ADMIN ? t('role.admin') : t('role.member'));
+  }
+
+  /** Nạp lại dữ liệu — dùng cho nút ⟳ và sau mọi thao tác ghi. */
+  function reloadData() {
+    showWait('loadingBox');
+    const rb = document.querySelector('.header .icon-btn[onclick="reloadData()"]');
+    if (rb) rb.classList.add('busy');
+    const rbOff = function () { if (rb) rb.classList.remove('busy'); };
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        rbOff();
+        hide('loadingBox');
+
+        if (!res || !res.ok) {
+          showBox('globalError', escapeHtml((res && res.message) || t('msg.error')), 'err');
+          return;
+        }
+
+        hide('globalError');
+
+        applyData(res);
+        refillAllSelects();
+        renderHome();
+        renderStock();
+
+        if (TX_TYPE === 'Export') renderPickTable();
+        if (PAGE === 'history') loadHistory(true);       // giữ số dòng đã "Tải thêm"
+
+      })
+      .withFailureHandler(function (e) {
+        rbOff();
+        hide('loadingBox');
+        showBox('globalError', t('msg.error') + ': ' + escapeHtml(e.message || e), 'err');
+      })
+      .getData();
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     NHẬN DỮ LIỆU TỔNG HỢP TỪ SERVER
+     ══════════════════════════════════════════════════════════════
+     Server cộng dồn sổ cái MỘT lần (Transactions.gs › computeLeanPayload_) và chỉ gửi kết quả:
+     tồn từng mã + số liệu tổng quan. Trình duyệt không còn nhận từng dòng giao dịch, nên
+     trang vào nhanh và không chậm dần khi sổ cái lớn. Lịch sử chi tiết tải khi cần.
+     ══════════════════════════════════════════════════════════════ */
+  function applyData(d) {
+    d = d || {};
+    STOCK   = d.stock || [];
+    HOME    = d.home || { txCount: 0, impTx: 0, expTx: 0, days: [] };
+    FILTERS = d.filters || { pics: [], ccs: [] };
+    SCOPE   = d.scope || '';
+  }
+  /* ══════════════════════════════════════════════════════════════
+     ROUTER (9 trang)
+     ══════════════════════════════════════════════════════════════
+     home · kho · history · report · me · admin · sku · ticket · stocktake
+     (Nav.html gom chúng thành tab Trang chủ · Kho · Báo cáo · Quản lý)
+
+     Trang MỌI VAI TRÒ : home · kho · report · me
+     Trang CHỈ ADMIN   : history · admin · sku · ticket · stocktake
+       (server cũng chặn: getTransactions / getItemDetail đều requireAdmin_)
+     ══════════════════════════════════════════════════════════════ */
+  const ADMIN_ONLY_PAGES = { admin: 1, ticket: 1, stocktake: 1, sku: 1, history: 1 };
+
+  /** Vai trò hiện tại có được mở trang này không (không báo lỗi). */
+  function pageAllowed_(page) {
+    if (page === 'sim') return !!(SESSION && SESSION.canSim);      // POPS + admin
+    return !(ADMIN_ONLY_PAGES[page] && !IS_ADMIN);
+  }
+
+  function goto(page) {
+    if (page === 'pops') { openPops(); return; }            // POPS là trang riêng của web app, không phải một <section>
+    // Staff chỉ có: home · kho · report · me. Mọi trang khác là của admin (server vẫn kiểm lại từng API).
+    if (!pageAllowed_(page)) {
+      toast(t('msg.needAdmin'), 'err');
+      return;
+    }
+
+    /* Rời Kiểm kê khi còn số đếm chưa lưu: hỏi trước, đồng ý thì bỏ số chưa lưu rồi đi tiếp */
+    if (PAGE === 'stocktake' && page !== 'stocktake' && typeof stkHasUnsaved === 'function' && stkHasUnsaved()) {
+      uiDialog({ title: t('stk.unsavedTitle'), body: t('stk.unsaved'), okLabel: t('stk.discard'), danger: true }, function () {
+        stkLeave();
+        goto(page);
+      });
+      return;
+    }
+
+    PAGE = page;
+
+    document.querySelectorAll('.page').forEach(function (s) {
+      s.classList.toggle('active', s.id === 'page-' + page);
+    });
+    if (typeof navSync === 'function') navSync(page);      // tab đang chọn + thanh con (Nav.html)
+
+    navPush_(page);                                        // nút Back của trình duyệt quay lại trang trước
+    el('content').scrollTop = 0;
+
+    // Nạp dữ liệu lần đầu vào trang
+    if (page === 'history' && typeof historyOnEnter === 'function') historyOnEnter();
+    if (page === 'me' && !MY_REQ) loadMyRequests();
+    if (page === 'admin') { loadApproval(); if (!USERS.length) loadUsers(); if (typeof bkOnEnter === 'function') bkOnEnter(); if (typeof atOnEnter === 'function') atOnEnter(); if (typeof mpOnEnter === 'function') mpOnEnter(); }
+    if (page === 'sku' && typeof skuOnEnter === 'function') skuOnEnter();
+    if (page === 'sim' && typeof simOnEnter === 'function') simOnEnter();
+    if (page === 'stocktake') stkOnEnter();
+    if (page === 'report' && typeof rpOnEnter === 'function') rpOnEnter();
+    if (page === 'ticket' && typeof ticketOnEnter === 'function') ticketOnEnter();
+
+  }
+
+  /* ──────────────────────────────────────────────────────────────
+     URL / NÚT BACK
+     Apps Script chạy app trong iframe: location.hash của iframe KHÔNG đổi URL thanh địa chỉ.
+     Cách chính thống là google.script.history (đổi hash của trang cha, F5 giữ được trang).
+     Không có thì thử history.pushState trong iframe (Back dùng được, F5 thì không).
+     Mọi thứ bọc try/catch: môi trường nào không cho thì im lặng bỏ qua, app vẫn chạy bình thường.
+     Trang Home không ghi hash (URL gốc sạch).
+     ────────────────────────────────────────────────────────────── */
+  let NAV_QUIET = false;     // đang điều hướng do Back/hash đổi -> không đẩy lại vào lịch sử
+  let NAV_LAST = '';         // trang cuối cùng đã ghi vào lịch sử
+
+  function navPush_(page, force) {
+    try {
+      if (NAV_QUIET) { NAV_LAST = page; return; }
+      if (page === NAV_LAST && !force) return;
+      const first = !NAV_LAST;
+      NAV_LAST = page;
+      if (first && page === 'home') return;               // lần vào đầu tiên ở Home: để nguyên URL
+      const h = page === 'home' ? '' : page;
+      const gh = window.google && google.script && google.script.history;
+      if (gh && gh.push) { gh.push({ page: page }, {}, h); return; }
+      if (window.history && history.pushState) history.pushState({ page: page }, '', '#' + (h ? '/' + h : ''));
+    } catch (e) { /* không hỗ trợ: bỏ qua */ }
+  }
+
+  /** hash (dạng 'kho', '/kho', '#/kho') -> mở trang tương ứng, không đẩy lại lịch sử. */
+  function navFromHash_(hash) {
+    try {
+      const p = String(hash || '').replace(/^#?\/?/, '') || 'home';
+      if (p === PAGE) { NAV_LAST = p; return; }
+      if (!el('page-' + p)) {                              // hash lạ (vd #/bogus): về Trang chủ
+        if (!SESSION) return;                               // app chưa chạy: để boot tự lo
+        NAV_QUIET = true;
+        try { goto('home'); } finally { NAV_QUIET = false; }
+        navPush_(PAGE, true);                               // viết lại hash cho khớp trang đang mở
+        return;
+      }
+      if (!pageAllowed_(p)) return;                         // trang của admin mà đang là staff: giữ nguyên trang hiện tại
+      NAV_QUIET = true;
+      try { goto(p); } finally { NAV_QUIET = false; }
+      if (PAGE !== p) navPush_(PAGE, true);               // trang bị chặn (vd còn số đếm kiểm kê chưa lưu): hash trả về trang đang mở
+    } catch (e) { NAV_QUIET = false; }
+  }
+
+  function navBoot_() {
+    try {
+      const gh = window.google && google.script && google.script.history;
+      if (gh && gh.setChangeHandler) {
+        gh.setChangeHandler(function (ev) { navFromHash_(ev && ev.location && ev.location.hash); });
+      }
+    } catch (e) {}
+    try {
+      window.addEventListener('popstate', function (ev) {
+        navFromHash_((ev.state && ev.state.page && ev.state.page !== 'home') ? ev.state.page : location.hash);
+      });
+      window.addEventListener('hashchange', function () { navFromHash_(location.hash); });
+    } catch (e) {}
+    try {
+      const gu = window.google && google.script && google.script.url;
+      if (gu && gu.getLocation) gu.getLocation(function (loc) { navFromHash_(loc && loc.hash); });
+      else navFromHash_(location.hash);
+    } catch (e) {}
+  }
+
+  /**
+   * Nhảy sang trang Kho, mở tab tồn kho theo yêu cầu.
+   * Dùng cho KPI "Cần chú ý" ở Tổng quan — thay cho bảng riêng đã bỏ.
+   */
+  function gotoStockTab(tab) {
+    goto('kho');
+    /* Xoá ô tìm, nhóm hàng, vị trí còn sót từ lần xem trước: số dòng phải bằng đúng con số trên thẻ KPI */
+    const ks = el('kSearch');
+    if (ks) { ks.value = ''; syncSearchClear('kSearch'); }
+    ['kFilterCat', 'kFilterLoc'].forEach(function (id) { const f = el(id); if (f) f.value = ''; });
+    setStockTab(tab);
+    setTimeout(function () {
+      const e = el('stockTable');
+      if (e) e.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     Ô TÌM KIẾM CỦA TỪNG BẢNG
+     ══════════════════════════════════════════════════════════════
+     Mỗi ô là <input id="X"> + nút xoá <button id="XClear">.
+     Tồn kho (kSearch)  -> lọc tại client (STOCK có sẵn).
+     Lịch sử (hSearch)  -> gọi lại server để quét TOÀN BỘ Database, không chỉ
+                           300 dòng đang hiện. Debounce 400ms.
+     ══════════════════════════════════════════════════════════════ */
+  let HIST_SEARCH_TIMER = null;
+
+  /** Hiện / ẩn nút xoá theo nội dung ô. */
+  function syncSearchClear(id) { const c = el(id + 'Clear'); if (c) c.hidden = !el(id).value; }
+
+  function onStockSearch() { syncSearchClear('kSearch'); renderStock(); }
+
+  function onHistSearch() {
+    syncSearchClear('hSearch');
+    clearTimeout(HIST_SEARCH_TIMER);
+    HIST_SEARCH_TIMER = setTimeout(loadHistory, 400);
+  }
+
+  /** Xoá nội dung ô `id` rồi chạy lại `refresh`. */
+  function clearSearchBox(id, refresh) {
+    el(id).value = '';
+    syncSearchClear(id);
+    refresh();
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     CHUÔNG THÔNG BÁO — nơi DUY NHẤT đọc thông báo
+     ══════════════════════════════════════════════════════════════
+     Trước đây thông báo hiện ở CẢ chuông và trang Của tôi. Bản này gom về
+     chuông vì chuông dùng được ở mọi trang, không phải đổi trang mới đọc.
+     Lý do từ chối vẫn đọc được ở bảng "Yêu cầu đã gửi" trang Của tôi.
+     ══════════════════════════════════════════════════════════════ */
+  function toggleNotiBox(ev) {
+    if (ev) ev.stopPropagation();
+
+    const box = el('notiBox');
+    if (!box) return;
+
+    const willOpen = !box.classList.contains('open');
+    closeAllPopups();
+
+    if (willOpen) {
+      box.classList.add('open');
+      loadNoti(false);
+    }
+    syncPopupAria();
+  }
+
+  function toggleUserBox(ev) {
+    if (ev) ev.stopPropagation();
+
+    const box = el('userBox');
+    if (!box) return;
+
+    const willOpen = !box.classList.contains('open');
+    closeAllPopups();
+    if (willOpen) box.classList.add('open');
+    syncPopupAria();
+  }
+
+  function closeAllPopups() {
+    ['notiBox', 'userBox'].forEach(function (id) {
+      const e = el(id); if (e) e.classList.remove('open');
+    });
+    syncPopupAria();
+  }
+
+  /** Báo cho trình đọc màn hình biết chuông và menu tài khoản đang mở hay đóng. */
+  function syncPopupAria() {
+    [['#notiBtn', 'notiBox'], ['.user-menu', 'userBox']].forEach(function (p) {
+      const b = document.querySelector(p[0]), x = el(p[1]);
+      if (!b || !x) return;
+      b.setAttribute('aria-haspopup', 'true');
+      b.setAttribute('aria-expanded', x.classList.contains('open') ? 'true' : 'false');
+    });
+  }
+
+  document.addEventListener('click', function (ev) {
+    if (!ev.target.closest('.noti-wrap') && !ev.target.closest('.user-menu')) {
+      closeAllPopups();
+    }
+  });
+
+  function setNotiFilter(unreadOnly) {
+    NOTI_UNREAD_ONLY = unreadOnly;
+    el('notiTabUnread').classList.toggle('on', unreadOnly);
+    el('notiTabAll').classList.toggle('on', !unreadOnly);
+    loadNoti(false);
+  }
+
+  function loadNoti(quiet) {
+    if (!quiet) el('notiList').innerHTML = '<div class="noti-empty">' + t('act.loading') + '</div>';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) {
+          el('notiList').innerHTML = '<div class="noti-empty">' +
+            escapeHtml((res && res.message) || t('msg.error')) + '</div>';
+          return;
+        }
+
+        NOTI_DATA = res;
+        renderNoti();
+        updateBadges(null, res.unread);
+      })
+      .withFailureHandler(function () {
+        el('notiList').innerHTML = '<div class="noti-empty">' + t('msg.error') + '</div>';
+      })
+      .getNotifications(NOTI_UNREAD_ONLY, 100);
+  }
+
+  function renderNoti() {
+    const res = NOTI_DATA;
+    if (!res) return;
+
+    setText('notiCount', res.unread ? t('noti.unreadCount', { n: res.unread }) : '');
+
+    const list = el('notiList');
+    list.innerHTML = '';
+
+    if (!res.rows.length) {
+      list.innerHTML = '<div class="noti-empty">' +
+        t(NOTI_UNREAD_ONLY ? 'noti.emptyUnread' : 'noti.emptyAll') + '</div>';
+      return;
+    }
+
+    res.rows.forEach(function (r) {
+      const item = document.createElement('div');
+      item.className = 'noti-item' + (r.read ? '' : ' unread');
+
+      const mark = document.createElement('span');
+      mark.className = 'noti-mark';
+
+      let chk = null;
+      if (!r.read) {
+        chk = document.createElement('button');
+        chk.type = 'button';
+        chk.className = 'noti-check';
+        chk.innerHTML = icon('check');
+        chk.title = t('noti.markRead');
+        chk.setAttribute('aria-label', t('noti.markRead'));
+        chk.onclick = function () { markRead(r.rowIndex); };
+      }
+
+      const body = document.createElement('div');
+      body.className = 'noti-body';
+      body.innerHTML =
+        '<div class="noti-msg">' + escapeHtml(r.msg) + '</div>' +
+        '<div class="noti-meta">' +
+        (r.type ? '<span class="noti-type ' + (r.type === 'Import' ? 'in' : 'out') + '">' + txLabel(r.type) + '</span>' : '') +
+        '<span>' + escapeHtml(r.ts) + '</span>' +
+        (r.user ? '<span>' + escapeHtml(r.user) + '</span>' : '') +
+        (r.cc ? '<span>' + escapeHtml(r.cc) + '</span>' : '') + '</div>';
+
+      item.appendChild(mark);
+      item.appendChild(body);
+      if (chk) item.appendChild(chk);
+      list.appendChild(item);
+    });
+  }
+
+  function markRead(rowIndex) {
+    google.script.run
+      .withSuccessHandler(function (res) { if (res && res.ok) loadNoti(true); })
+      .markNotificationRead(rowIndex);
+  }
+
+  function markAllRead() {
+    google.script.run
+      .withSuccessHandler(function () { loadNoti(false); })
+      .markAllNotificationsRead();
+  }
+
+  function gotoFromNoti() {
+    closeAllPopups();
+    goto('admin');
+    loadApproval();
+  }
+
+  function gotoFromNotiMe() {
+    closeAllPopups();
+    goto('me');
+    loadMyRequests();
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     BADGE + POLLING
+     ══════════════════════════════════════════════════════════════ */
+  let LAST_UNREAD = 0;
+
+  function updateBadges(pendingCount, unreadCount) {
+    if (pendingCount != null) {
+      PENDING_N = pendingCount;
+      if (typeof renderHomeKpis === 'function' && STOCK.length) renderHomeKpis();   // thẻ Chờ duyệt ở Tổng quan
+      const b = el('navPending');
+      if (b) {
+        b.textContent = pendingCount;
+        b.hidden = !(IS_ADMIN && pendingCount > 0);
+      }
+
+      const cta = el('notiCta');
+      if (cta) cta.hidden = !(IS_ADMIN && pendingCount > 0);
+      setText('notiCtaNum', pendingCount);
+
+      setText('apCount', pendingCount);
+    }
+
+    if (unreadCount != null) {
+      const dot = el('notiDot');
+      if (dot) {
+        dot.textContent = unreadCount > 99 ? '99+' : unreadCount;
+        dot.hidden = !(unreadCount > 0);
+      }
+
+      // Rung chuông khi có thông báo mới
+      if (unreadCount > LAST_UNREAD && LAST_UNREAD >= 0) {
+        const btn = el('notiBtn');
+        if (btn) {
+          btn.classList.add('noti-ring');
+          setTimeout(function () { btn.classList.remove('noti-ring'); }, 600);
+        }
+      }
+      LAST_UNREAD = unreadCount;
+
+      const nm = el('navMe');
+      if (nm) {
+        nm.textContent = unreadCount > 99 ? '99+' : unreadCount;
+        nm.hidden = !(unreadCount > 0);
+      }
+
+      const ctaMe = el('notiCtaMe');
+      if (ctaMe) ctaMe.hidden = IS_ADMIN;
+    }
+  }
+
+  /** Poll 60 giây/lần. Chỉ đọc 2 cột nên rất nhẹ. */
+  function startPolling() {
+    if (POLL_TIMER) clearInterval(POLL_TIMER);
+
+    POLL_TIMER = setInterval(function () {
+      if (document.hidden) return;   // tab ẩn thì bỏ qua, tiết kiệm quota
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.ok) updateBadges(res.pending, res.unread);
+        })
+        .getUnreadCount();
+    }, 60000);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     GẮN SỰ KIỆN MENU + KHỞI ĐỘNG
+     ══════════════════════════════════════════════════════════════ */
+  document.querySelectorAll('.nav-item').forEach(function (a) {
+    a.addEventListener('click', function () {
+      goto(a.getAttribute('data-page'));
+    });
+  });
+
+  /* Bàn phím + trình đọc màn hình cho phần tử bấm được không phải <button>, và nhãn ↔ ô nhập.
+     Quét lại sau mỗi lần DOM đổi (nhiều trang do JS vẽ). shortcut: chưa có aria-expanded cho menu thả, nâng cấp khi đổi sang <button>. */
+  var A11Y_CLICKABLE = '.nav-item, .user-menu, .sub-item, .alert-row, .alert-more, .kpi.tap, .ub-links a, [onclick]:not(button):not(a[href]):not(input):not(select):not(textarea):not(label):not(summary)';
+  var a11yQueued = false, a11yUid = 0;
+  function a11yPatch() {
+    a11yQueued = false;
+    document.querySelectorAll(A11Y_CLICKABLE).forEach(function (n) {
+      if (!n.hasAttribute('tabindex')) n.tabIndex = 0;
+      if (!n.hasAttribute('role') && !/^(TR|TD|TH)$/.test(n.tagName)) n.setAttribute('role', n.matches('.nav-item, .ub-links a') ? 'link' : 'button');
+    });
+    document.querySelectorAll('.field > label:not([for])').forEach(function (lb) {
+      if (lb.querySelector('input, select, textarea')) return;
+      var c = lb.parentElement && lb.parentElement.querySelector('input:not([type=hidden]), select, textarea');
+      if (!c) return;
+      if (!c.id) c.id = 'fld' + (++a11yUid);
+      lb.htmlFor = c.id;
+    });
+  }
+  new MutationObserver(function () {
+    if (!a11yQueued) { a11yQueued = true; requestAnimationFrame(a11yPatch); }
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('keydown', function (e) {
+    var n = e.target;
+    if ((e.key === 'Enter' || e.key === ' ') && n.matches && n.matches('[tabindex="0"]:not(button):not(a[href]):not(input):not(select):not(textarea):not(summary)')) {
+      e.preventDefault();
+      n.click();
+    }
+  });
+
+  window.addEventListener('DOMContentLoaded', boot);
+</script>

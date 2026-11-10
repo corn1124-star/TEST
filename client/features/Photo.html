@@ -1,0 +1,564 @@
+<style>
+  /* ══ ẢNH HÀNG HOÁ ══ */
+  .ph-wrap{
+    margin-top:var(--s-4); padding-top:var(--s-4);
+    border-top:1px solid var(--n-200);
+  }
+  .ph-head{
+    display:flex; align-items:center; gap:var(--s-2); flex-wrap:wrap;
+    margin-bottom:var(--s-2);
+  }
+  .ph-title{
+    flex:1; min-width:110px;
+    font-size:11px; font-weight:var(--fw-semi); color:var(--n-400);
+  }
+  .ph-btn{
+    display:inline-flex; align-items:center; gap:8px;
+    min-height:34px; padding:8px 12px;
+    border:1px solid var(--n-300); border-radius:var(--r-md);
+    background:var(--n-000); color:var(--n-700);
+    font-family:inherit; font-size:var(--fs-sm);
+    font-weight:var(--fw-medium); cursor:pointer;
+  }
+  .ph-btn:hover{ background:var(--n-050); border-color:var(--n-400); }
+  .ph-btn.cam{ border-color:var(--g-100); color:var(--g-700); }
+
+  .ph-grid{
+    display:grid; gap:var(--s-2);
+    grid-template-columns:repeat(auto-fill, minmax(96px, 1fr));
+  }
+  .ph-cell{
+    position:relative; aspect-ratio:1/1; overflow:hidden;
+    border:1px solid var(--n-200); border-radius:var(--r-md);
+    background:var(--n-100);
+  }
+  .ph-cell img{ width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in; }
+  .ph-cell .ph-x{
+    position:absolute; top:3px; right:3px;
+    width:22px; height:22px; border:none; border-radius:50%;
+    background:color-mix(in srgb, var(--n-900) 66%, transparent); color:var(--n-000);
+    font-size:11px; line-height:1; cursor:pointer;
+  }
+  .ph-cell .ph-x:hover{ background:var(--red); }
+  .ph-cell .ph-bar{
+    position:absolute; left:0; right:0; bottom:0;
+    padding:2px 4px; background:color-mix(in srgb, var(--n-900) 60%, transparent); color:var(--n-000);
+    font-size:11px; text-align:center; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis;
+  }
+  .ph-cell.up{
+    display:flex; align-items:center; justify-content:center;
+    padding:4px; font-size:var(--fs-xs);
+    color:var(--n-500); text-align:center;
+  }
+  .ph-cell.up.bad{
+    border-color:var(--red-bd); background:var(--red-bg);
+    color:var(--red);
+  }
+  .ph-empty{
+    padding:var(--s-3);
+    border:1px dashed var(--n-300); border-radius:var(--r-md);
+    font-size:var(--fs-xs); font-style:italic;
+    color:var(--n-400); text-align:center;
+  }
+  .ph-note{ margin-top:var(--s-2); font-size:var(--fs-xs); color:var(--n-400); }
+  .ph-note.bad{ color:var(--red); font-style:normal; }
+
+  .ph-ov{
+    position:fixed; inset:0; z-index:950; display:none;
+    align-items:center; justify-content:center;
+    padding:24px; background:color-mix(in srgb, var(--n-900) 82%, transparent);
+  }
+  .ph-ov.on{ display:flex; }
+  .ph-ov img{
+    max-width:100%; max-height:80vh; border-radius:var(--r-md);
+    background:var(--n-000); box-shadow:0 18px 50px color-mix(in srgb, var(--n-900) 40%, transparent);
+  }
+  .ph-ov-bar{
+    position:absolute; left:0; right:0; bottom:0;
+    display:flex; gap:12px; justify-content:center; flex-wrap:wrap;
+    padding:16px; color:var(--n-000); font-size:var(--fs-sm);
+  }
+  .ph-ov-bar a{ color:var(--g-on-dark); font-weight:var(--fw-semi); }
+  body.ph-lock{ overflow:clip; }
+</style>
+
+<script>
+  /* ══════════════════════════════════════════════════════════════
+     PhotoUI.html — CHỤP / TẢI ẢNH CHO FORM NHẬP KHO & FORM SỬA
+     ══════════════════════════════════════════════════════════════
+     Include SAU App.html nên:
+       · tự chèn DOM trước #impMsg (form Nhập) và #edMsg (form Sửa)
+         -> Index.html chỉ cần 1 dòng include;
+       · bọc openEdit / closeEdit / resetImport -> không sửa 3 hàm đó.
+
+     Ảnh được thu nhỏ bằng canvas TRƯỚC khi gửi: 3-6 MB xuống vài trăm KB,
+     đồng thời khử luôn lỗi ảnh tự quay do EXIF orientation.
+
+     Form Nhập chưa có Asset Code -> ảnh lên với KHOÁ TẠM, vào folder
+     _Cho duyet. Gửi xong photoCommitImport() gắn sang Request ID (staff)
+     hoặc Asset Code (admin) và server tự chuyển file sang folder mã.
+     ══════════════════════════════════════════════════════════════ */
+
+  const PH_MAX_SIDE   = 1600;      // cạnh dài nhất ảnh gửi lên Drive
+  const PH_Q_START    = 0.86;      // chất lượng JPEG khởi điểm
+  const PH_TARGET     = 900000;    // ~900 KB, hạ chất lượng dần cho tới khi đạt
+  const PH_THUMB_SIDE = 260;       // thumbnail lưu trong Sheet
+  const PH_MAX_FILES  = 8;
+
+  let PH_DRAFT_KEY = '';           // khoá tạm của phiên nhập kho hiện tại
+  let PH_IMPORT    = [];           // ảnh của form Nhập
+  let PH_EDIT      = [];           // ảnh của form Sửa
+  let PH_EDIT_REF  = null;         // { code, cc, txRow, name }
+  let PH_BUSY      = 0;
+  let PH_SEQ       = 0;
+
+  function phNewKey() {
+    return 'TMP-' + Date.now().toString(36).toUpperCase() + '-' +
+           Math.random().toString(36).slice(2, 6).toUpperCase();
+  }
+
+  function phList(kind)       { return kind === 'import' ? PH_IMPORT : PH_EDIT; }
+  function phSetList(kind, a) { if (kind === 'import') PH_IMPORT = a; else PH_EDIT = a; }
+
+  /* ══ 1. DỰNG DOM ══ */
+  function phBlock(kind) {
+    const isImp = kind === 'import';
+    return '' +
+      '<div class="ph-wrap" id="phWrap_' + kind + '">' +
+        '<div class="ph-head">' +
+          '<span class="ph-title">Ảnh hàng hoá</span>' +
+          '<button type="button" class="ph-btn cam" ' +
+                  'onclick="phPick(\'' + kind + '\', true)">&#128247; Chụp ảnh</button>' +
+          '<button type="button" class="ph-btn" ' +
+                  'onclick="phPick(\'' + kind + '\', false)">&#128206; Chọn tệp</button>' +
+        '</div>' +
+        '<input type="file" id="phInp_' + kind + '" accept="image/*" multiple ' +
+               'hidden onchange="phOnFiles(this, \'' + kind + '\')">' +
+        '<div class="ph-grid" id="phGrid_' + kind + '"></div>' +
+        '<div class="ph-note" id="phNote_' + kind + '">' +
+          'Tối đa ' + PH_MAX_FILES + ' ảnh, tự thu nhỏ trước khi tải lên' +
+          (isImp ? '. Ảnh sẽ được gắn vào yêu cầu sau khi bạn gửi.' : '.') +
+        '</div>' +
+      '</div>';
+  }
+
+  /** Chèn khối ảnh vào ngay trước hộp thông báo của mỗi form. */
+  function phMount(kind, anchorId) {
+    if (el('phWrap_' + kind)) return true;
+
+    const anchor = el(anchorId);
+    if (!anchor || !anchor.parentNode) return false;
+
+    const box = document.createElement('div');
+    box.innerHTML = phBlock(kind);
+    anchor.parentNode.insertBefore(box.firstChild, anchor);
+    return true;
+  }
+
+  function phMountOverlay() {
+    if (el('phOv')) return;
+
+    const ov = document.createElement('div');
+    ov.id = 'phOv';
+    ov.className = 'ph-ov';
+    ov.onclick = function (e) { if (e.target.id === 'phOv') phCloseView(); };
+    ov.innerHTML =
+      '<img id="phOvImg" alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">' +
+      '<div class="ph-ov-bar">' +
+        '<span id="phOvTxt"></span>' +
+        '<a id="phOvLink" href="#" target="_blank" rel="noopener">Mở ảnh gốc &#8599;</a>' +
+        '<span style="opacity:.6">— bấm nền hoặc Esc để đóng</span>' +
+      '</div>';
+    document.body.appendChild(ov);
+  }
+
+  function phNote(kind, msg, bad) {
+    const e = el('phNote_' + kind);
+    if (!e) return;
+    e.className = 'ph-note' + (bad ? ' bad' : '');
+    e.innerHTML = msg || ('Tối đa ' + PH_MAX_FILES +
+      ' ảnh, tự thu nhỏ trước khi tải lên' +
+      (kind === 'import' ? '. Ảnh sẽ được gắn vào yêu cầu sau khi bạn gửi.' : '.'));
+  }
+
+  /* ══ 2. CHỌN ẢNH ══ */
+  function phPick(kind, useCamera) {
+    phMountOverlay();
+    const inp = el('phInp_' + kind);
+    if (!inp) return;
+
+    // capture chỉ có tác dụng trên điện thoại; máy tính mở hộp chọn tệp
+    if (useCamera) inp.setAttribute('capture', 'environment');
+    else inp.removeAttribute('capture');
+
+    inp.value = '';
+    inp.click();
+  }
+
+  function phOnFiles(inp, kind) {
+    const files = Array.prototype.slice.call(inp.files || []);
+    inp.value = '';
+    if (!files.length) return;
+
+    const ref = phRef(kind);
+    if (ref && ref.err) { phNote(kind, ref.err, true); return; }
+
+    const room = PH_MAX_FILES - phList(kind).length;
+    if (room <= 0) {
+      phNote(kind, 'Đã đủ ' + PH_MAX_FILES + ' ảnh. Xoá một ảnh trước khi thêm.', true);
+      return;
+    }
+
+    let take = files;
+    if (files.length > room) {
+      take = files.slice(0, room);
+      phNote(kind, 'Chỉ nhận thêm ' + room + ' ảnh (tối đa ' + PH_MAX_FILES + ').', true);
+    }
+
+    take.forEach(function (f) {
+      if (String(f.type || '').indexOf('image/') !== 0) {
+        phNote(kind, 'Bỏ qua "' + (f.name || 'tệp') + '" — không phải ảnh.', true);
+        return;
+      }
+      phAddOne(kind, f);
+    });
+  }
+
+  /* ══ 3. THU NHỎ BẰNG CANVAS ══
+     Vẽ lại qua canvas nên khử luôn EXIF orientation — ảnh chụp dọc bằng
+     điện thoại không còn bị tự quay ngang. */
+  function phDraw(img, w, h) {
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#ffffff';      // PNG trong suốt -> tránh nền đen khi sang JPEG
+    cx.fillRect(0, 0, w, h);
+    cx.drawImage(img, 0, 0, w, h);
+    return cv;
+  }
+
+  function phResize(file, done, fail) {
+    const reader = new FileReader();
+
+    reader.onerror = function () { fail('Không đọc được tệp.'); };
+    reader.onload = function () {
+      const img = new Image();
+
+      img.onerror = function () { fail('Tệp ảnh không hợp lệ.'); };
+      img.onload = function () {
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        if (!w || !h) { fail('Ảnh rỗng.'); return; }
+
+        const s  = Math.min(1, PH_MAX_SIDE / Math.max(w, h));
+        const cv = phDraw(img, Math.max(1, Math.round(w * s)),
+                               Math.max(1, Math.round(h * s)));
+
+        let q = PH_Q_START;
+        let url = cv.toDataURL('image/jpeg', q);
+        while (url.length * 0.75 > PH_TARGET && q > 0.4) {
+          q -= 0.12;
+          url = cv.toDataURL('image/jpeg', q);
+        }
+
+        const ts = Math.min(1, PH_THUMB_SIDE / Math.max(w, h));
+        const thumb = phDraw(img, Math.max(1, Math.round(w * ts)),
+                                  Math.max(1, Math.round(h * ts)))
+                      .toDataURL('image/jpeg', 0.72);
+
+        done({ data: url, thumb: thumb, mime: 'image/jpeg',
+               name: file.name || 'photo.jpg' });
+      };
+
+      img.src = reader.result;
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  /* ══ 4. TẢI LÊN ══ */
+  function phRef(kind) {
+    if (kind === 'import') {
+      // Asset Code chưa tồn tại lúc này -> ảnh vào _Cho duyet,
+      // server tự chuyển sang folder mã sau khi yêu cầu được duyệt.
+      if (!PH_DRAFT_KEY) PH_DRAFT_KEY = phNewKey();
+      return { refType: 'DRAFT', refKey: PH_DRAFT_KEY, code: '',
+               cc: SESSION ? SESSION.cc : '',
+               itemName: ((el('iName') && el('iName').value) || '').trim() };
+    }
+
+    if (!PH_EDIT_REF || !PH_EDIT_REF.code) return { err: 'Chưa xác định mã hàng.' };
+    return { refType: 'TX', refKey: PH_EDIT_REF.code, code: PH_EDIT_REF.code,
+             cc: PH_EDIT_REF.cc, txRow: PH_EDIT_REF.txRow,
+             itemName: PH_EDIT_REF.name || '' };
+  }
+
+  function phAddOne(kind, file) {
+    const item = { seq: ++PH_SEQ, state: 'work', label: file.name || 'ảnh',
+                   thumb: '', photoId: '', url: '', err: '' };
+
+    phList(kind).push(item);
+    PH_BUSY++;
+    phRender(kind);
+
+    phResize(file, function (out) {
+      item.thumb = out.thumb;          // hiện thumbnail ngay, chưa chờ server
+      item.label = out.name;
+      phRender(kind);
+      phUpload(kind, item, out);
+    }, function (msg) {
+      PH_BUSY--;
+      item.state = 'bad'; item.err = msg;
+      phRender(kind);
+    });
+  }
+
+  function phUpload(kind, item, out) {
+    const ref = phRef(kind);
+    if (!ref || ref.err) {
+      PH_BUSY--;
+      item.state = 'bad';
+      item.err = (ref && ref.err) || 'Chưa xác định mục để gắn ảnh.';
+      phRender(kind);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        PH_BUSY--;
+        if (!res || !res.ok) {
+          item.state = 'bad';
+          item.err = (res && res.message) || 'Lỗi tải ảnh.';
+          phRender(kind);
+          return;
+        }
+        item.state     = 'ok';
+        item.photoId   = res.photo.photoId;
+        item.url       = res.photo.url;
+        item.thumb     = res.photo.thumb || item.thumb;
+        item.label     = res.photo.fileName;
+        item.folder    = res.photo.folder;
+        item.at        = res.photo.at;
+        item.by        = res.photo.by;
+        item.canDelete = true;
+        phRender(kind);
+      })
+      .withFailureHandler(function (e) {
+        PH_BUSY--;
+        item.state = 'bad';
+        item.err = (e && e.message) ? String(e.message) : 'Không gọi được server.';
+        phRender(kind);
+      })
+      .photoSave({
+        refType: ref.refType, refKey: ref.refKey, code: ref.code || '',
+        cc: ref.cc || '', txRow: ref.txRow || '', itemName: ref.itemName || '',
+        name: out.name, mime: out.mime, data: out.data, thumb: out.thumb
+      });
+  }
+
+  /* ══ 5. VẼ LƯỚI ẢNH ══ */
+  function phRender(kind) {
+    const grid = el('phGrid_' + kind);
+    if (!grid) return;
+
+    const list = phList(kind);
+    grid.innerHTML = '';
+
+    if (!list.length) {
+      const d = document.createElement('div');
+      d.className = 'ph-empty';
+      d.textContent = kind === 'import'
+        ? 'Chưa có ảnh — bấm "Chụp ảnh" hoặc "Chọn tệp".'
+        : 'Mã hàng này chưa có ảnh.';
+      grid.appendChild(d);
+    } else {
+      list.forEach(function (it) {
+        const cell = document.createElement('div');
+
+        if (it.state === 'work') {
+          cell.className = 'ph-cell up';
+          cell.innerHTML = it.thumb
+            ? '<img src="' + escapeHtml(it.thumb) + '" alt=""><div class="ph-bar">Đang tải lên…</div>'
+            : '<span>Đang xử lý…</span>';
+
+        } else if (it.state === 'bad') {
+          cell.className = 'ph-cell up bad';
+          cell.innerHTML = '<span>' + escapeHtml(it.err || 'Lỗi') + '</span>';
+
+        } else {
+          cell.className = 'ph-cell';
+          cell.innerHTML =
+            (it.thumb
+              ? '<img src="' + escapeHtml(it.thumb) + '" alt="" title="' + escapeHtml(it.label) +
+                '" onclick="phView(\'' + kind + '\',\'' + it.photoId + '\')">'
+              : '<div class="ph-bar">' + escapeHtml(it.label) + '</div>') +
+            (it.canDelete === false ? ''
+              : '<button type="button" class="ph-x" title="Xoá ảnh" onclick="phDelete(\'' +
+                kind + '\',\'' + it.photoId + '\')">&#10005;</button>');
+        }
+
+        grid.appendChild(cell);
+      });
+    }
+
+    if (PH_BUSY > 0) {
+      phNote(kind, 'Đang tải <b>' + PH_BUSY + '</b> ảnh — hãy chờ xong rồi mới gửi.', true);
+    } else {
+      const ok = list.filter(function (i) { return i.state === 'ok'; }).length;
+      phNote(kind, ok ? '<b>' + ok + '</b> ảnh đã lưu.' : '');
+    }
+  }
+
+  /* ══ 6. XEM LỚN · XOÁ ══ */
+  function phView(kind, photoId) {
+    const it = phList(kind).filter(function (i) { return i.photoId === photoId; })[0];
+    if (!it) return;
+
+    phMountOverlay();
+    el('phOvImg').src = it.thumb || '';
+    setText('phOvTxt', it.label + (it.at ? ' · ' + it.at : '') +
+                       (it.folder ? ' · ' + it.folder : ''));
+
+    const a = el('phOvLink');
+    if (it.url) { a.href = it.url; a.hidden = false; } else { a.hidden = true; }
+
+    el('phOv').classList.add('on');
+    document.body.classList.add('ph-lock');
+  }
+
+  function phCloseView() {
+    const ov = el('phOv');
+    if (ov) ov.classList.remove('on');
+    document.body.classList.remove('ph-lock');
+  }
+
+  function phDelete(kind, photoId) {
+    if (!photoId) return;
+    if (!confirm('Xoá ảnh này? Tệp sẽ chuyển vào Thùng rác Drive.')) return;
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) {
+          phNote(kind, escapeHtml((res && res.message) || 'Không xoá được ảnh.'), true);
+          return;
+        }
+        phSetList(kind, phList(kind).filter(function (i) { return i.photoId !== photoId; }));
+        phRender(kind);
+      })
+      .withFailureHandler(function (e) {
+        phNote(kind, 'Lỗi: ' + escapeHtml(e.message || e), true);
+      })
+      .photoDelete(photoId);
+  }
+
+  /* ══ 7. NẠP ẢNH ĐÃ CÓ (form Sửa) ══ */
+  function phLoadFor(kind, refKind, key) {
+    phSetList(kind, []);
+    phRender(kind);
+    phNote(kind, 'Đang tải ảnh…');
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) {
+          phNote(kind, escapeHtml((res && res.message) || 'Không tải được ảnh.'), true);
+          return;
+        }
+        phSetList(kind, (res.rows || []).map(function (r) {
+          return { state: 'ok', photoId: r.photoId, url: r.url, thumb: r.thumb,
+                   label: r.fileName, folder: r.folder, canDelete: r.canDelete,
+                   by: r.by, at: r.at };
+        }));
+        phRender(kind);
+      })
+      .withFailureHandler(function (e) {
+        phNote(kind, 'Lỗi: ' + escapeHtml(e.message || e), true);
+      })
+      .photoList(refKind, key);
+  }
+
+  /* ══ 8. GẮN ẢNH NHÁP SAU KHI GỬI YÊU CẦU NHẬP ══
+     Gọi từ doImport() trong App.html, TRƯỚC resetImport().
+     res.requestId -> staff gửi yêu cầu, gắn theo Request ID
+     res.assetCode -> admin ghi thẳng, gắn theo Asset Code + chuyển file ngay */
+  function photoCommitImport(res) {
+    const key = PH_DRAFT_KEY;
+    const n = PH_IMPORT.filter(function (i) { return i.state === 'ok'; }).length;
+    if (!key || !n) return;
+
+    const rid  = (res && res.requestId) ? String(res.requestId) : '';
+    const code = (res && (res.assetCode || res.code)) ? String(res.assetCode || res.code) : '';
+
+    const info = rid
+      ? { refType: 'REQUEST', refKey: rid, code: code }
+      : { refType: 'TX', refKey: code, code: code };
+
+    if (!info.refKey) return;
+    info.cc = SESSION ? SESSION.cc : '';
+
+    google.script.run
+      .withSuccessHandler(function () {})
+      .withFailureHandler(function () {})
+      .photoAttach(key, info);
+  }
+
+  /* ══ 9. BỌC CÁC HÀM CỦA App.html — không sửa App.html ══ */
+  (function () {
+    if (typeof openEdit === 'function') {
+      const _open = openEdit;
+      openEdit = function (r) {
+        const out = _open(r);
+        PH_EDIT_REF = { code: r.code, cc: r.cc, txRow: r.rowIndex, name: r.name };
+        phMountOverlay();
+        if (phMount('edit', 'edMsg')) phLoadFor('edit', 'code', r.code);
+        return out;
+      };
+    }
+
+    if (typeof closeEdit === 'function') {
+      const _close = closeEdit;
+      closeEdit = function () {
+        PH_EDIT = []; PH_EDIT_REF = null;
+        phRender('edit');
+        return _close();
+      };
+    }
+
+    /* Còn ảnh đang tải thì chưa cho gửi: ảnh xong sau khi form reset sẽ không được gắn vào yêu cầu / mã. */
+    if (typeof doImport === 'function') {
+      const _doImport = doImport;
+      doImport = function () {
+        if (PH_BUSY > 0) {
+          showBox('impMsg', 'Còn <b>' + PH_BUSY + '</b> ảnh đang tải lên — hãy chờ xong rồi mới gửi.', 'err');
+          return;
+        }
+        return _doImport.apply(this, arguments);
+      };
+    }
+
+    if (typeof resetImport === 'function') {
+      const _reset = resetImport;
+      resetImport = function () {
+        PH_IMPORT = []; PH_DRAFT_KEY = '';
+        phRender('import');
+        return _reset();
+      };
+    }
+
+    document.addEventListener('keydown', function (e) {
+      const ov = el('phOv');
+      if (e.key === 'Escape' && ov && ov.classList.contains('on')) phCloseView();
+    });
+
+    /* #impMsg có thể chưa dựng xong lúc boot -> thử lại vài lần rồi thôi */
+    let tries = 0;
+    function boot() {
+      phMountOverlay();
+      if (phMount('import', 'impMsg')) { phRender('import'); return; }
+      if (++tries < 12) setTimeout(boot, 500);
+    }
+
+    if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', boot);
+    else boot();
+  })();
+</script>

@@ -1,0 +1,118 @@
+<script>
+  /* ══════════════════════════════════════════════════════════════
+     TRANG 5 — YÊU CẦU CỦA TÔI (staff gửi yêu cầu nhập/xuất, theo dõi duyệt)
+     ══════════════════════════════════════════════════════════════
+     ĐÃ BỎ khối thông báo — trùng với chuông ở header. Trang này giờ chỉ
+     còn 3 KPI (bấm = lọc) + bảng yêu cầu (nơi đọc lý do từ chối đầy đủ) + Hồ sơ ở cuối.
+     ══════════════════════════════════════════════════════════════ */
+  Object.assign(I18N.vi, {
+    'me.kpiFootPen':'chờ quản trị viên xử lý', 'me.kpiFootApp':'đã ghi vào sổ kho', 'me.kpiFootRej':'xem lý do ở bảng bên dưới',
+    'me.noReqAdmin':'Bạn chưa gửi yêu cầu nào. Quản trị viên nhập/xuất kho trực tiếp nên thường không có yêu cầu ở đây.'
+  });
+  Object.assign(I18N.en, {
+    'me.kpiFootPen':'waiting for an admin', 'me.kpiFootApp':'posted to the ledger', 'me.kpiFootRej':'see the reason in the table below',
+    'me.noReqAdmin':'You have not sent any requests. Admins receive and issue stock directly, so this list is usually empty.'
+  });
+
+  function setMyReqTab(tab) {
+    MY_REQ_TAB = tab;
+    const map = { '':'mrTabAll', 'PENDING':'mrTabPen',
+                  'APPROVED':'mrTabApp', 'REJECTED':'mrTabRej' };
+    Object.keys(map).forEach(function (k) {
+      el(map[k]).classList.toggle('on', k === tab);
+    });
+    renderMyRequests();
+  }
+
+  function loadMyRequests() {
+    showWait('myReqInfo', 'myReqTable', 6);
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) {
+          showBox('myReqInfo', escapeHtml((res && res.message) || t('msg.error')), 'err');
+          return;
+        }
+        MY_REQ = res;
+        renderMyRequests();
+      })
+      .withFailureHandler(function (e) {
+        showBox('myReqInfo', t('msg.error') + ': ' + escapeHtml(e.message || e), 'err');
+      })
+      .getMyRequests(200);
+  }
+
+  function renderMyRequests() {
+    const res = MY_REQ;
+    if (!res) return;
+
+    const s = res.summary;
+
+    /* Mỗi thẻ một dòng chân khác nhau (trước đây cả 3 lặp "bấm để xem danh sách"). */
+    setHtml('meKpis',
+      kpiCard({ ico:'clock', tone: s.pending ? 'amber' : '', label:t('me.kpiPending'),
+                value:num(s.pending), foot:t('me.kpiFootPen'),
+                onClick:"setMyReqTab('PENDING')" }) +
+      kpiCard({ ico:'check', label:t('me.kpiApproved'),
+                value:num(s.approved), foot:t('me.kpiFootApp'),
+                onClick:"setMyReqTab('APPROVED')" }) +
+      kpiCard({ ico:'x', tone: s.rejected ? 'red' : '', label:t('me.kpiRejected'),
+                value:num(s.rejected), foot:t('me.kpiFootRej'),
+                onClick:"setMyReqTab('REJECTED')" }));
+
+    const rows = MY_REQ_TAB
+      ? res.rows.filter(function (r) { return r.status === MY_REQ_TAB; })
+      : res.rows;
+
+    showBox('myReqInfo', t('msg.myReqCount',
+      { n: rows.length, total: res.total }), 'info');
+
+    const table = el('myReqTable');
+    table.innerHTML = '';
+    table.appendChild(headRow(['col.status','col.type','col.product','col.qty','col.box',
+      'col.date','col.location','col.submittedAt','col.decision']));
+
+    const tbody = document.createElement('tbody');
+
+    if (!rows.length) {
+      tbody.appendChild(emptyRow(9, t(IS_ADMIN ? 'me.noReqAdmin' : 'me.noReq')));
+    } else {
+      rows.forEach(function (r) {
+        const b = reqBadge(r.status);
+        const tr = document.createElement('tr');
+        if (r.status === 'PENDING') tr.classList.add('flag');
+
+        let decision = '<span class="waiting">' + t('st.pending') + '…</span>';
+
+        if (r.status === 'APPROVED') {
+          decision = escapeHtml(r.decisionBy) +
+            '<div class="cell-sub">' + escapeHtml(r.decisionTime) + '</div>' +
+            (r.assetCode ? '<div class="cell-sub mono">' +
+              escapeHtml(r.assetCode) + '</div>' : '');
+        } else if (r.status === 'REJECTED') {
+          decision = escapeHtml(r.decisionBy) +
+            '<div class="cell-sub">' + escapeHtml(r.decisionTime) + '</div>' +
+            '<div class="reject-box">' + escapeHtml(r.decisionNote) + '</div>';
+        }
+
+        tr.innerHTML =
+          '<td><span class="badge ' + b.cls + '">' + b.label + '</span></td>' +
+          '<td><span class="badge ' + (r.type === 'Import' ? 'in' : 'out') + '">' +
+            txLabel(r.type) + '</span></td>' +
+          '<td class="wrap">' + escapeHtml(r.name) +
+            (r.variant ? ' · <span class="cell-variant">' +
+              escapeHtml(r.variant) + '</span>' : '') + '</td>' +
+          '<td class="num">' + num(r.quantity) + ' ' + escapeHtml(r.unit) + '</td>' +
+          '<td class="num">' + (Number(r.boxCount) || '—') + '</td>' +
+          '<td>' + escapeHtml(r.transactionDate) + '</td>' +
+          '<td class="wrap">' + escapeHtml(r.location) + '</td>' +
+          '<td>' + escapeHtml(r.submittedAt) + '</td>' +
+          '<td class="wrap">' + decision + '</td>';
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    table.appendChild(tbody);
+  }
+</script>

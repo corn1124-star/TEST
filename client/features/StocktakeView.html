@@ -1,0 +1,235 @@
+<style>
+  /* ══ KIỂM KÊ — bố cục kiểu Odoo: control panel · statusbar · stat buttons · list view · dialog ══ */
+  #page-stocktake [hidden]{ display:none !important; }
+
+  .odoo-cp{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    padding:0 0 12px; margin:0 0 12px; border-bottom:1px solid var(--n-200);
+  }
+  .odoo-crumb{ font-size:16px; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+  .odoo-crumb a{ color:var(--g-600); cursor:pointer; }
+  .odoo-crumb a:hover{ text-decoration:underline; }
+  .odoo-crumb .sub{ color:var(--n-400); font-size:var(--fs-xs); }
+  .odoo-actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:0 0 12px; }
+  .odoo-actions .grow{ flex:1; }
+  /* top âm = đệm trên của #content (--pad-t, Theme.html): thanh dính áp sát mép trên vùng cuộn, không lộ dòng bảng phía trên */
+  .odoo-actions.sticky{ position:sticky; top:calc(-1 * var(--pad-t, 0px)); z-index:6; background:var(--n-050); padding:8px 0; margin:0 0 8px; }
+
+  /* nút ? (absolute, góc phải trên mỗi trang, rộng 32–40px) không được đè nút/bước trạng thái ở mép phải của thanh điều khiển */
+  #page-stocktake .odoo-cp{ padding-right:44px; }
+  @media (pointer:coarse), (max-width:600px){ #page-stocktake .odoo-cp{ padding-right:52px; } }
+
+  /* cột số: tiêu đề cột canh phải cho thẳng với số (Hệ thống · Thực tế · Chênh lệch) */
+  #stkTable thead th:nth-child(3), #stkTable thead th:nth-child(4), #stkTable thead th:nth-child(5){ text-align:right; }
+
+  /* statusbar dạng mũi tên */
+  .odoo-steps{ display:flex; }
+  .odoo-step{
+    padding:8px 20px 8px 24px; font-size:var(--fs-xs); color:var(--n-600); background:var(--n-100);
+    clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%);
+    margin-left:-8px;
+  }
+  .odoo-step:first-child{ margin-left:0; clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%); padding-left:16px; }
+  .odoo-step.on{ background:var(--g-600); color:var(--n-000); font-weight:600; }
+  .odoo-step.bad{ background:var(--neg); color:var(--n-000); font-weight:600; }
+
+  /* ô thống kê bấm để lọc (stat buttons) */
+  .odoo-stats{
+    display:flex; flex-wrap:wrap; border:1px solid var(--n-200); border-radius:var(--r-sm); overflow:hidden;
+    background:var(--n-000); margin:0 0 12px;
+  }
+  .odoo-stat{
+    flex:1 1 130px; padding:12px 16px; text-align:left; background:none; border:0;
+    border-right:1px solid var(--n-200); cursor:pointer; font:inherit; color:inherit;
+  }
+  .odoo-stat:last-child{ border-right:0; }
+  .odoo-stat:hover{ background:var(--n-050); }
+  .odoo-stat.on{ background:var(--g-050); box-shadow:inset 0 -2px 0 var(--color-board); }
+  .odoo-stat .v{ display:block; font-size:20px; font-weight:600; line-height:1.2; }
+  .odoo-stat .l{ display:block; font-size:12px; color:var(--n-500); }
+  .odoo-stat.ok .v{ color:var(--g-700); }
+  .odoo-stat.warn .v{ color:var(--amber); }
+  .odoo-stat.danger .v{ color:var(--red); }
+  .odoo-stat.static{ cursor:default; }
+
+  .odoo-sheet{
+    background:var(--n-000); border:1px solid var(--n-200); border-radius:var(--r-sm);
+    padding:16px 20px; margin:0 0 12px;
+  }
+  .odoo-form{ display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px 20px; }
+  .odoo-form .full{ grid-column:1 / -1; }
+
+  .odoo-search{ display:flex; gap:8px; margin:0 0 8px; }
+  .odoo-search input{ flex:1; max-width:420px; }
+
+  .odoo-pager{ display:flex; align-items:center; gap:8px; justify-content:flex-end; padding:8px 2px; font-size:var(--fs-xs); color:var(--n-500); }
+
+  .stk-q{ width:86px; text-align:right; }
+  .stk-q.dirty{ border-color:var(--amber); background:var(--amber-bg); }
+  .stk-note{ width:150px; }
+  tr.stk-over td:first-child{ box-shadow:inset 3px 0 0 var(--amber); }
+  tr.stk-short td:first-child{ box-shadow:inset 3px 0 0 var(--red); }
+  tr.stk-match td:first-child{ box-shadow:inset 3px 0 0 var(--fill-ok); }
+  .stk-pos{ color:var(--amber); font-weight:600; }
+  .stk-neg{ color:var(--red); font-weight:600; }
+  .stk-row-click{ cursor:pointer; }
+  .stk-row-click:hover td{ background:var(--n-050); }
+  .stk-row-click:focus-visible{ outline:2px solid var(--g-500); outline-offset:-2px; }
+  .btn.toggle.on{ background:var(--g-050); border-color:var(--color-board); color:var(--g-700); font-weight:600; }
+  /* danh sách đợt kiểm kê: các bước (bước hiện tại đậm, có biểu tượng) và kết quả khớp / dư / thiếu bằng biểu tượng + số */
+  .stk-steps{ list-style:none; display:flex; flex-wrap:wrap; gap:4px 16px; margin:0; padding:0; }
+  .stk-steps li{ display:inline-flex; align-items:center; gap:4px; color:var(--n-500); font-size:var(--fs-md); }
+  .stk-steps .ico{ width:16px; height:16px; }
+  .stk-dot{ flex:0 0 12px; width:12px; height:12px; margin:2px; border:1.5px dashed currentColor; border-radius:50%; display:inline-block; }
+  .stk-steps li.done{ color:var(--st-ok); }
+  .stk-steps li.now{ color:var(--n-900); font-weight:600; }
+  .stk-steps li.now .ico{ color:var(--color-brand); }
+  .stk-steps li.now.ok{ color:var(--st-ok); }
+  .stk-steps li.todo{ color:var(--n-400); }
+  .stk-steps li.bad{ color:var(--red); font-weight:600; }
+  .stk-prog-n{ margin-top:4px; font-size:var(--fs-sm); color:var(--n-500); white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .stk-prog-n b{ color:var(--n-900); font-weight:600; }
+  .stk-res{ white-space:nowrap; }
+  .stk-r{ display:inline-flex; align-items:center; gap:4px; margin-right:16px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .stk-r .ico{ width:16px; height:16px; }
+  .stk-r.ok{ color:var(--st-ok); }
+  .stk-r.warn{ color:var(--amber); }
+  .stk-r.bad{ color:var(--red); }
+  .stk-r.none{ color:var(--n-400); font-weight:400; }
+
+  .stk-binline{ display:none; }
+
+  /* khung chờ */
+  tr.skel td{ padding:16px 12px; }
+  tr.skel i{ display:block; height:12px; border-radius:6px; background:var(--n-100); }
+
+  /* điện thoại: chỉ giữ Mặt hàng · Hệ thống · Thực tế · Kết quả; vị trí kệ chuyển xuống dưới tên hàng */
+  @media (max-width:700px){
+    #stkTable th:nth-child(1), #stkTable td:nth-child(1),
+    #stkTable th:nth-child(5), #stkTable td:nth-child(5),
+    #stkTable th:nth-child(7), #stkTable td:nth-child(7),
+    #stkTable th:nth-child(8), #stkTable td:nth-child(8){ display:none; }
+    .stk-binline{ display:block; }
+    .stk-q{ width:76px; }
+    #stkTable td.wrap{ min-width:90px; max-width:140px; }
+    #stkTable .stk-q{ width:64px; padding-left:4px; padding-right:4px; }
+    .odoo-stat{ flex:1 1 45%; }
+  }
+
+  /* dialog */
+  .odoo-modal{
+    position:fixed; inset:0; z-index:9000; background:color-mix(in srgb, var(--n-900) 45%, transparent);
+    display:flex; align-items:center; justify-content:center; padding:16px;
+  }
+  .odoo-dialog{
+    background:var(--n-000); border-radius:var(--r-md); width:min(780px, 100%); max-height:88vh;
+    display:flex; flex-direction:column; box-shadow:0 20px 50px color-mix(in srgb, var(--n-900) 25%, transparent);
+  }
+  .odoo-dialog > header{ padding:16px 20px; border-bottom:1px solid var(--n-200); font-size:16px; font-weight:600; }
+  .odoo-dialog > .body{ padding:16px 20px; overflow:auto; }
+  .odoo-dialog > footer{ padding:12px 20px; border-top:1px solid var(--n-200); display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  .odoo-dialog input[type=checkbox]{ width:16px; height:16px; padding:0; margin:0; }
+  .odoo-dialog td, .odoo-dialog th{ vertical-align:middle; }
+  .odoo-dialog textarea{ width:100%; min-height:200px; font-family:var(--font-mono); font-size:var(--fs-xs); }
+</style>
+
+<section class="page" id="page-stocktake">
+  <div class="box info" id="stkInfo" hidden></div>
+
+  <!-- ═══ DANH SÁCH ĐỢT ═══ -->
+  <div id="stkListView">
+    <div class="odoo-cp">
+      <div>
+        <h1 class="page-title" data-i18n="stk.title"></h1>
+        <p class="page-sub" style="margin:0" data-i18n="stk.sub"></p>
+      </div>
+      <div class="odoo-actions" style="margin:0">
+        <button class="btn" onclick="stkToggleCreate()">
+          <svg aria-hidden="true" class="ico"><use href="#i-clipboard-check"></use></svg>
+          <span data-i18n="stk.new"></span>
+        </button>
+        <button class="btn ghost" onclick="stkLoadList()">
+          <svg aria-hidden="true" class="ico"><use href="#i-refresh"></use></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="odoo-sheet" id="stkCreateCard" hidden>
+      <div class="odoo-form">
+        <div class="field"><label data-i18n="stk.name"></label><input type="text" id="stkName" maxlength="80"></div>
+        <div class="field"><label data-i18n="stk.team"></label><select id="stkTeam"></select></div>
+        <div class="field"><label data-i18n="form.category"></label><select id="stkCat"></select></div>
+        <div class="field"><label data-i18n="form.location"></label><select id="stkLoc"></select></div>
+        <div class="field full"><label data-i18n="stk.note"></label><input type="text" id="stkNote" maxlength="200"></div>
+      </div>
+      <p class="hint" data-i18n="stk.newHint"></p>
+      <div class="odoo-actions" style="margin:8px 0 0">
+        <button class="btn" id="stkCreateBtn" onclick="stkCreate()" data-i18n="stk.create"></button>
+        <button class="btn ghost" onclick="stkToggleCreate()" data-i18n="act.cancel"></button>
+      </div>
+    </div>
+
+    <div class="table-wrap tall rt"><table id="stkListTable"></table></div>
+  </div>
+
+  <!-- ═══ CHI TIẾT 1 ĐỢT ═══ -->
+  <div id="stkDetailView" hidden>
+    <div class="odoo-cp">
+      <div class="odoo-crumb">
+        <a onclick="stkBack()" data-i18n="stk.title"></a><span>/</span><b id="stkDName"></b>
+        <span class="sub" id="stkDMeta"></span>
+      </div>
+      <div class="odoo-steps" id="stkSteps"></div>
+    </div>
+
+    <div class="odoo-actions sticky">
+      <button class="btn" id="stkConfirmBtn" onclick="stkOpenConfirm()" hidden data-i18n="stk.confirm"></button>
+      <button class="btn ghost" id="stkSaveBtn" onclick="stkSaveCounts()" hidden></button>
+      <button class="btn ghost" id="stkPasteBtn" onclick="stkOpenPaste()" hidden data-i18n="stk.paste"></button>
+      <span class="grow"></span>
+      <button class="btn ghost toggle" id="stkBlindBtn" onclick="stkToggleBlind()" aria-pressed="true" hidden data-i18n-title="stk.blindHint" data-i18n="stk.blind"></button>
+      <details class="more">
+        <summary class="btn ghost"><span>⋯</span><span data-i18n="act.more"></span></summary>
+        <div class="more-pop">
+          <button class="btn ghost" onclick="stkExportCsv(false)" data-i18n="stk.sheetOut"></button>
+          <button class="btn ghost" onclick="stkExportCsv(true)" data-i18n="stk.resultOut"></button>
+          <button class="btn ghost danger" id="stkCancelBtn" onclick="stkCancel()" hidden data-i18n="stk.cancel"></button>
+          <button class="btn ghost danger" id="stkDeleteBtn" onclick="stkDelete()" data-i18n="del.stkTitle"></button>
+        </div>
+      </details>
+    </div>
+
+    <div class="odoo-stats" id="stkStats"></div>
+
+    <div class="odoo-search">
+      <input type="text" id="stkSearch" data-i18n-ph="stk.searchPh" autocomplete="off" oninput="stkOnSearch()">
+    </div>
+
+    <div class="table-wrap tall rt"><table id="stkTable"></table></div>
+    <div class="odoo-pager" id="stkPager"></div>
+  </div>
+
+  <!-- ═══ DÁN SỐ LIỆU TỪ EXCEL ═══ -->
+  <div class="odoo-modal" id="stkPasteModal" hidden>
+    <div class="odoo-dialog" role="dialog" aria-modal="true" aria-labelledby="stkPasteTitle">
+      <header id="stkPasteTitle" data-i18n="stk.paste"></header>
+      <div class="body">
+        <p class="hint" data-i18n="stk.pasteHint"></p>
+        <textarea id="stkPasteText" spellcheck="false"></textarea>
+      </div>
+      <footer>
+        <button class="btn ghost" onclick="stkClosePaste()" data-i18n="act.cancel"></button>
+        <button class="btn" onclick="stkApplyPaste()" data-i18n="stk.pasteApply"></button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ═══ XÁC NHẬN KẾT QUẢ ═══ -->
+  <div class="odoo-modal" id="stkConfirmModal" hidden>
+    <div class="odoo-dialog" role="dialog" aria-modal="true" aria-labelledby="stkConfirmTitle">
+      <header id="stkConfirmTitle" data-i18n="stk.confirmTitle"></header>
+      <div class="body" id="stkConfirmBody"></div>
+      <footer id="stkConfirmFoot"></footer>
+    </div>
+  </div>
+</section>

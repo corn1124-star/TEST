@@ -1,0 +1,192 @@
+<script>
+  /* ============================================================
+     HƯỚNG DẪN NGƯỜI DÙNG
+     ============================================================
+     1. Giới thiệu lần đầu (4-5 bước), mở lại ở menu tài khoản › Hướng dẫn sử dụng.
+     2. Nút "?" ở góc mỗi trang: trang này làm gì + giải nghĩa thuật ngữ.
+     Không chặn công việc: Bỏ qua được bất cứ lúc nào.
+     ============================================================ */
+
+  Object.assign(I18N.vi, {
+    'help.btn':'Trợ giúp về trang này', 'guide.next':'Tiếp', 'guide.prev':'Quay lại', 'guide.skip':'Bỏ qua', 'guide.done':'Bắt đầu dùng', 'guide.close':'Đóng',
+    'guide.s1.t':'Chào mừng đến Grab Inventory',
+    'guide.s1.a':'Mọi việc nằm ở vài tab ngay đầu trang (dưới đáy màn hình nếu dùng điện thoại).',
+    'guide.s1.b':'Trang chủ: xem kho có ổn không và việc nào cần xử lý.',
+    'guide.s1.c':'Kho: tồn kho, nhập/xuất và lịch sử. Báo cáo: nhập–xuất–tồn, tồn kho, cảnh báo.',
+    'guide.s2.t':'Nhập và xuất kho',
+    'guide.s2.admin1':'Vào tab Kho, chọn Nhập kho hoặc Xuất kho rồi điền thông tin. Admin ghi trực tiếp.',
+    'guide.s2.admin2':'Yêu cầu của nhân viên các team hiện ở Quản lý › Duyệt & Người dùng.',
+    'guide.s2.staff1':'Vào tab Kho, chọn Nhập hoặc Xuất rồi gửi yêu cầu. Admin sẽ duyệt.',
+    'guide.s2.staff2':'Theo dõi yêu cầu ở menu tài khoản (góc phải) › Yêu cầu của tôi. Bạn sửa hoặc xóa được khi chưa duyệt.',
+    'guide.s3.t':'Tìm nhanh và xem trợ giúp',
+    'guide.s3.a':'Ô tìm kiếm nằm ngay trên bảng Tồn kho và Lịch sử, tìm theo mã, tên hàng, vị trí.',
+    'guide.s3.b':'Nút ? ở góc phải mỗi trang giải thích trang đó và các thuật ngữ.',
+    'guide.s3.c':'Mở lại hướng dẫn này ở menu tài khoản › Hướng dẫn sử dụng.',
+    'guide.s4.t':'Dành cho admin',
+    'guide.s4.a':'Kiểm kê: đếm thực tế, nhập số vào hệ thống, hệ thống so Khớp/Dư/Thiếu rồi bạn quyết định hiệu chỉnh.',
+    'guide.s4.b':'Quản lý: duyệt yêu cầu, người dùng, phiếu kho, sao lưu, xem và khôi phục giao dịch đã xóa.',
+    'guide.s4.c':'Xóa một giao dịch là xóa mềm: khôi phục được, và bị chặn nếu làm tồn kho âm.',
+
+    'help.t':'Trang này dùng để',
+    'help.home.1':'Xem nhanh kho có ổn không. Thẻ "Cần chú ý" gồm mã hết, âm hoặc sắp hết — bấm để xem.',
+    'help.home.2':'Bốn nút lớn phía trên dẫn tới việc hay làm nhất.',
+    'help.home.3':'Biểu đồ cho thấy lượng nhập và xuất 30 ngày gần nhất.',
+    'help.kho.1':'Tồn kho hiện tại theo từng mã. Lọc theo Còn hàng / Sắp hết / Hết và âm.',
+    'help.kho.2':'Nhập kho / Xuất kho: chọn loại rồi điền thông tin. Nhân viên gửi yêu cầu, admin duyệt.',
+    'help.kho.3':'"Thùng" là số thùng ghi khi nhập; "Tồn" là số cái. Asset Code là mã định danh duy nhất của mặt hàng.',
+    'help.history.1':'Toàn bộ giao dịch đã ghi, mới nhất trước. Bấm Asset Code để xem chi tiết từng thùng.',
+    'help.history.2':'Admin sửa hoặc xóa một giao dịch ở khung chi tiết. Xóa là xóa mềm, khôi phục được ở Quản lý.',
+    'help.report.1':'Chọn báo cáo ở các tab: Nhập–Xuất–Tồn, Tồn kho, Cảnh báo tồn.',
+    'help.report.2':'Chọn xem theo Cái, Thùng hoặc Cả hai. Xuất CSV để mở bằng Excel, hoặc In.',
+    'help.report.3':'Nhập–Xuất–Tồn: Tồn cuối = Tồn đầu + Nhập − Xuất trong kỳ bạn chọn.',
+    'help.stocktake.1':'Tạo đợt, đếm hàng thật ngoài kho, rồi nhập số vào đây.',
+    'help.stocktake.2':'Hệ thống so ngay: Khớp / Dư / Thiếu. Bạn quyết định có hiệu chỉnh tồn kho hay không.',
+    'help.stocktake.3':'Chỉ dòng được chọn mới bị hiệu chỉnh; "Không hiệu chỉnh" vẫn lưu kết quả để báo cáo.',
+    'help.admin.1':'Duyệt hoặc từ chối yêu cầu nhập/xuất của nhân viên. Quản lý người dùng.',
+    'help.admin.2':'Sao lưu dữ liệu, xem yêu cầu đã xử lý (xóa được) và giao dịch đã xóa (khôi phục được).',
+    'help.ticket.1':'In phiếu nhập / xuất kho theo ngày, người yêu cầu và loại.',
+    'help.me.1':'Các yêu cầu bạn đã gửi và trạng thái của chúng. Sửa hoặc xóa được khi chưa duyệt.',
+    'help.me.2':'Hàng của thành viên cùng team.'
+  });
+  Object.assign(I18N.en, {
+    'help.btn':'Help for this page', 'guide.next':'Next', 'guide.prev':'Back', 'guide.skip':'Skip', 'guide.done':'Get started', 'guide.close':'Close',
+    'guide.s1.t':'Welcome to Grab Inventory',
+    'guide.s1.a':'Everything is in a few tabs at the top (at the bottom of the screen on a phone).',
+    'guide.s1.b':'Home: see whether the warehouse is healthy and what needs action.',
+    'guide.s1.c':'Stock: stock levels, receive/issue and history. Reports: opening-in-out-closing, stock, alerts.',
+    'guide.s2.t':'Receiving and issuing',
+    'guide.s2.admin1':'Open the Stock tab, choose Receive or Issue and fill in the form. Admins post directly.',
+    'guide.s2.admin2':'Requests from team members appear in Manage › Approvals & Users.',
+    'guide.s2.staff1':'Open the Stock tab, choose Receive or Issue and send a request. An admin will approve it.',
+    'guide.s2.staff2':'Track it from the account menu (top right) › My requests. You can edit or delete it until it is approved.',
+    'guide.s3.t':'Search and help',
+    'guide.s3.a':'The search box sits right above the Stock and History tables and finds by code, item name or location.',
+    'guide.s3.b':'The ? button at the top right of each page explains that page and its terms.',
+    'guide.s3.c':'Reopen this guide from the account menu › User guide.',
+    'guide.s4.t':'For admins',
+    'guide.s4.a':'Stocktake: count for real, enter the numbers, the system compares Match/Over/Short and you decide whether to adjust.',
+    'guide.s4.b':'Manage: approve requests, users, stock slips, backups, and view/restore deleted transactions.',
+    'guide.s4.c':'Deleting a transaction is a soft delete: it can be restored, and is blocked if it would make stock negative.',
+
+    'help.t':'This page is for',
+    'help.home.1':'A quick health check. "Needs attention" covers out, negative or low items — click to view.',
+    'help.home.2':'The four large buttons lead to the most common tasks.',
+    'help.home.3':'The chart shows receipts and issues for the last 30 days.',
+    'help.kho.1':'Current stock per item. Filter by In stock / Low / Out and negative.',
+    'help.kho.2':'Receive / Issue: choose the type and fill in the form. Staff send requests; admins approve.',
+    'help.kho.3':'"Boxes" is the box count recorded at receipt; "Stock" is the unit count. Asset Code uniquely identifies an item.',
+    'help.history.1':'Every recorded transaction, newest first. Click an Asset Code for per-box detail.',
+    'help.history.2':'Admins edit or delete a transaction in the detail panel. Deleting is soft and restorable under Manage.',
+    'help.report.1':'Pick a report from the tabs: Opening-In-Out-Closing, Stock, Stock alerts.',
+    'help.report.2':'View by Units, Boxes or Both. Export CSV for Excel, or Print.',
+    'help.report.3':'Closing = Opening + In − Out for the period you choose.',
+    'help.stocktake.1':'Create a count, count the real stock, then enter the numbers here.',
+    'help.stocktake.2':'The system compares instantly: Match / Over / Short. You decide whether to adjust stock.',
+    'help.stocktake.3':'Only selected lines are adjusted; "Do not adjust" still saves the result for reporting.',
+    'help.admin.1':'Approve or reject staff receive/issue requests. Manage users.',
+    'help.admin.2':'Back up data, see processed requests (deletable) and deleted transactions (restorable).',
+    'help.ticket.1':'Print receipt / issue slips by date, requester and type.',
+    'help.me.1':'Requests you have sent and their status. Edit or delete until approved.',
+    'help.me.2':'Items of your teammates.'
+  });
+
+  const HELP_PAGES = ['home', 'kho', 'history', 'report', 'stocktake', 'admin', 'ticket', 'me'];
+  const HELP_ICO = { home:'home', kho:'box', history:'history', report:'grid', stocktake:'clipboard-check', admin:'shield', ticket:'file-text', me:'user' };
+  let GUIDE_I = 0, GUIDE_PREV = null;
+
+  function guideBox() {
+    let m = el('guideModal');
+    if (!m) {
+      m = document.createElement('div');
+      m.id = 'guideModal'; m.className = 'guide-modal'; m.hidden = true;
+      m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+      m.addEventListener('click', function (ev) { if (ev.target === m) guideClose(false); });
+      document.body.appendChild(m);
+      document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !m.hidden) guideClose(false); });
+      document.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Tab' || m.hidden) return;
+        const f = m.querySelectorAll('button:not([disabled])');
+        if (!f.length) return;
+        const a = f[0], z = f[f.length - 1];
+        if (!m.contains(document.activeElement) || (ev.shiftKey && document.activeElement === a)) { ev.preventDefault(); (ev.shiftKey ? z : a).focus(); }
+        else if (!ev.shiftKey && document.activeElement === z) { ev.preventDefault(); a.focus(); }
+      });
+    }
+    return m;
+  }
+
+  function guideSteps() {
+    const s = [
+      { ico: 'home', t: 'guide.s1.t', items: ['guide.s1.a', 'guide.s1.b', 'guide.s1.c'] },
+      { ico: 'box', t: 'guide.s2.t', items: IS_ADMIN ? ['guide.s2.admin1', 'guide.s2.admin2'] : ['guide.s2.staff1', 'guide.s2.staff2'] },
+      { ico: 'search', t: 'guide.s3.t', items: ['guide.s3.a', 'guide.s3.b', 'guide.s3.c'] }
+    ];
+    if (IS_ADMIN) s.push({ ico: 'clipboard-check', t: 'guide.s4.t', items: ['guide.s4.a', 'guide.s4.b', 'guide.s4.c'] });
+    return s;
+  }
+
+  function guideOpen(i) {
+    const steps = guideSteps();
+    GUIDE_I = Math.max(0, Math.min(i || 0, steps.length - 1));
+    const s = steps[GUIDE_I], last = GUIDE_I === steps.length - 1;
+
+    guideBox().innerHTML =
+      '<div class="guide-card"><div class="guide-ico">' + icon(s.ico) + '</div>' +
+      '<h2>' + escapeHtml(t(s.t)) + '</h2>' +
+      '<ul>' + s.items.map(function (k) { return '<li>' + escapeHtml(t(k)) + '</li>'; }).join('') + '</ul>' +
+      '<div class="guide-dots">' + steps.map(function (x, n) { return '<i class="' + (n === GUIDE_I ? 'on' : '') + '"></i>'; }).join('') + '</div>' +
+      '<div class="guide-actions">' +
+        (GUIDE_I ? '<button class="btn ghost" onclick="guideOpen(' + (GUIDE_I - 1) + ')">' + escapeHtml(t('guide.prev')) + '</button>' : '<button class="btn ghost" onclick="guideClose(true)">' + escapeHtml(t('guide.skip')) + '</button>') +
+        (last ? '<button class="btn" onclick="guideClose(true)">' + escapeHtml(t('guide.done')) + '</button>' : '<button class="btn" onclick="guideOpen(' + (GUIDE_I + 1) + ')">' + escapeHtml(t('guide.next')) + '</button>') +
+      '</div></div>';
+    if (guideBox().hidden) GUIDE_PREV = document.activeElement;
+    guideBox().hidden = false;
+    const nb = guideBox().querySelector('.guide-actions .btn:last-child');
+    if (nb) nb.focus();
+  }
+
+  function guideClose(markSeen) {
+    guideBox().hidden = true;
+    if (GUIDE_PREV && GUIDE_PREV.focus) { GUIDE_PREV.focus(); GUIDE_PREV = null; }
+    if (markSeen) { try { localStorage.setItem('gim_tour_v2', '1'); } catch (e) {} }
+  }
+
+  function guideMaybeStart() {
+    try { if (localStorage.getItem('gim_tour_v2')) return; } catch (e) {}
+    guideOpen(0);
+  }
+
+  /* ── nút ? ở mỗi trang ── */
+  function helpEnsure(page) {
+    if (HELP_PAGES.indexOf(page) === -1) return;
+    const sec = el('page-' + page);
+    if (!sec || sec.querySelector(':scope > .help-btn')) return;
+
+    const b = document.createElement('button');
+    b.className = 'help-btn'; b.type = 'button'; b.textContent = '?';
+    b.setAttribute('aria-label', t('help.btn')); b.title = t('help.btn');
+    b.onclick = function () { helpShow(page); };
+    sec.insertBefore(b, sec.firstChild);
+  }
+
+  /* Đổi ngôn ngữ: applyI18n() đặt lại <html lang>, dùng làm tín hiệu để cập nhật nhãn của mọi nút ? */
+  function helpRelabel() {
+    document.querySelectorAll('.help-btn').forEach(function (b) { b.setAttribute('aria-label', t('help.btn')); b.title = t('help.btn'); });
+  }
+  if (typeof MutationObserver !== 'undefined') {
+    new MutationObserver(helpRelabel).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+  }
+
+  function helpShow(page) {
+    const items = [];
+    for (let n = 1; n <= 5; n++) { const k = 'help.' + page + '.' + n; if (I18N[LANG][k] || I18N.vi[k]) items.push(k); }
+
+    guideBox().innerHTML =
+      '<div class="guide-card"><div class="guide-ico">' + icon(HELP_ICO[page] || 'box') + '</div>' +
+      '<h2>' + escapeHtml(t('help.t')) + '</h2>' +
+      '<ul>' + items.map(function (k) { return '<li>' + escapeHtml(t(k)) + '</li>'; }).join('') + '</ul>' +
+      '<div class="guide-actions"><button class="btn ghost" onclick="guideOpen(0)">' + escapeHtml(t('guide.menu')) + '</button>' +
+      '<button class="btn" onclick="guideClose(false)">' + escapeHtml(t('guide.close')) + '</button></div></div>';
+    guideBox().hidden = false;
+  }
+</script>
