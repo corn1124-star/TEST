@@ -4,6 +4,6 @@ const APP_VERSION = '4.3.0';
 const APP_BUILD_DATE = '2026-10-23';
 /* Dấu bản dựng: nằm trong khoá cache của khung HTML. tools\make-test-build.ps1 và release.ps1 đóng dấu giờ build vào đây,
    nên đổi code là cache khung trang tự mất hiệu lực. 'dev' = chưa đóng dấu. */
-const APP_BUILD_ID = '20261109-sort2';
+const APP_BUILD_ID = '20261116-sim1';
 
 function getAppVersion() { auth_(); return { version: APP_VERSION, built: APP_BUILD_DATE }; }
