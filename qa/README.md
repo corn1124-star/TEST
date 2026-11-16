@@ -19,8 +19,8 @@ dist/          build output (git-ignore it)
 ## Run it
 
 ```bash
-export PATH="$PATH:/c/Users/thanh.phan/AppData/Local/Programs/node-v22.14.0-win-x64"
-cd "/c/Users/thanh.phan/Downloads/SEC WH QA"
+export PATH="/c/Users/thanh.phan/tools/node/node-v26.13.0-win-x64:$PATH"
+cd "/c/Users/thanh.phan/Downloads/SEC WH/qa"
 node build.mjs            # -> dist/index.html (about 20 ms)
 node smoke.mjs            # builds, runs 4 scenarios, prints PASS/FAIL table, exit code 1 on failure
 node example-test.mjs     # sample UI test

@@ -1,15 +1,12 @@
-# SEC WH — QA checklist (sau đợt sửa audit UX/UI 2026-10-29)
+# SEC WH — QA checklist (cập nhật 2026-11-16, bản v4.3.0 + nhánh SIM)
 
-Cách test: harness trình duyệt thật (Chrome headless + CDP) nạp `client/Index.html` với `google.script.run` giả (mock) — xem `C:/Users/thanh.phan/Downloads/SEC WH QA/README.md`. Mỗi mục ghi kết quả PASS / FAIL / BLOCKED (kèm lý do) trong `C:/Users/thanh.phan/Downloads/SEC WH QA/results/<nhóm>.md`.
+Cách test tự động: harness trình duyệt thật (Chrome headless + CDP) nạp `client/Index.html` với `google.script.run` giả (mock) — xem `qa/README.md`. Chạy từng bộ một, không chạy song song (song song làm vài bài thất thường); kết quả in PASS/FAIL, thoát mã 0 khi xanh.
 Viewport: D = 1440×900, M = 390×844 (điện thoại, cảm ứng). Vai trò: A = admin, S = staff. Mỗi mục chạy cả VI và EN khi có chuỗi mới.
+Phần "Kiểm bằng tay trên app thật" ở cuối là những gì bộ test KHÔNG chứng minh được (Google thật, Excel thật, mắt nhìn).
 
 ## Nhóm 1 — Trang chủ & Kho (OverviewStock.html, Index page-home/page-kho)
-- 1.01 [A,D] KPI "Cần chú ý" = (số mã tồn ≤ ngưỡng, gồm âm & 0); bấm → tab "Cần chú ý" ở Kho hiện ĐÚNG số dòng đó.
-- 1.02 [A,D] Link "Xem tất cả" trong khối "Cần xử lý ngay" mở cùng tab, cùng số dòng.
-- 1.03 [A,S,D] Thứ tự KPI: admin = Chờ duyệt, Cần chú ý, Mã đang có, Tổng tồn; staff = Cần chú ý, Yêu cầu của tôi, …; KPI cần hành động > 0 có vạch màu trái; không có màu tím.
+- 1.01–1.03, 1.05, 1.06: đã thay bằng `test-dashboard.mjs` + `test-dashboard-data.mjs` (trang Tổng quan Coral, đối chiếu số bằng dữ liệu mẫu, đã thử đột biến). Mục tay: xem mục 4 phần cuối.
 - 1.04 [A,D] Dòng chào dưới tiêu đề: có việc → "N yêu cầu chờ duyệt · M mã cần chú ý"; không có → câu chào cũ. Đổi VI/EN cập nhật.
-- 1.05 [A,D] Dữ liệu có nhiều đơn vị: KPI "Tổng tồn (đơn vị)" chỉ cộng đơn vị chiếm đa số, foot liệt kê đơn vị khác; thanh nhóm hàng hiện đơn vị, không cộng lẫn.
-- 1.06 [A,D+M] Biểu đồ Nhập–Xuất 30 ngày: chữ không méo ở 1440 và 390; đổi kích thước cửa sổ → vẽ lại; tick Y là số nguyên, không trùng (kiểm dữ liệu đỉnh = 1, 2, 7, 1234); màu cột khớp legend; dữ liệu rỗng → thông báo, không lỗi.
 - 1.07 [A,D] Kho → chọn Xuất: gõ tìm / đổi nhóm khi form xuất đang mở → form + số đã nhập (ngày, SL, vị trí) còn nguyên dưới đúng dòng; dòng bị lọc mất → form đóng gọn, không lỗi console.
 - 1.08 [A,D] Form xuất: SL > tồn → nút khóa + báo; sau reloadData (nút ⟳) form còn, "Tồn khả dụng" cập nhật; Esc đóng form; bấm lại cùng dòng → focus ô SL.
 - 1.09 [A,D] Xuất → xác nhận bằng hộp thoại uiDialog (không phải confirm gốc); Hủy = không gửi; OK = gọi exportEntry đúng payload; nút trở lại bình thường khi lỗi.
@@ -77,17 +74,31 @@ Viewport: D = 1440×900, M = 390×844 (điện thoại, cảm ứng). Vai trò: 
 - 5.09 [A,S,D+M] Quét toàn app: mở lần lượt tất cả trang (home, kho, history, stocktake, admin, sku, ticket, report, me) ở D và M, VI và EN; ghi lỗi console, lỗi mạng, ID bị thiếu, tràn ngang, văn bản bị cắt; chụp ảnh từng trang.
 - 5.10 [A,S] Phân quyền giao diện: staff không thấy phần tử `.admin-menu`/`.admin-gate`; admin không thấy `.member-menu`; goto vào trang bị cấm bị chặn bằng toast.
 
----
-## Kết quả sau lần sửa thứ hai (2026-10-29)
-Chạy lại 5 script test bằng harness Chrome (mock server). Smoke 92/92. Báo cáo lần 1 ở `SEC WH QA/results/before/`, log lần 2 ở `results/rerun-group1..5.log`.
+## Nhóm 6 — Sắp xếp cột (TableSort.html, Reports.html) — `test-tablesort.mjs`
+- 6.01 [A,S,D] Mọi bảng (Kho, Lịch sử, Kiểm kê, SKU, SIM, Người dùng, Duyệt, Yêu cầu của tôi): bấm tiêu đề → `aria-sort` + mũi tên đúng; số xếp theo số, ô trống luôn nằm cuối; "Gửi lúc" (`dd/MM HH:mm`) xếp theo thời gian, đúng cả khi vắt qua cuối tháng.
+- 6.02 [A,D] Báo cáo nhiều trang: sắp xếp trên TOÀN BỘ dòng rồi mới chia trang (trang 1 = 100 giá trị lớn nhất, trang 2 nối tiếp); đổi cột/chiều khi đang ở trang 2 → về trang 1; dòng Tổng không đổi.
+- 6.03 [A,D] Xuất CSV và In (báo cáo) theo đúng thứ tự đang sắp xếp, đủ mọi dòng (không chỉ trang đang xem); không sắp xếp thì giữ thứ tự gốc.
+- 6.04 [A,M] Điện thoại: ô "Sắp xếp theo…" + nút chiều trên danh sách thẻ sắp xếp đúng toàn bộ dòng báo cáo.
+- 6.05 [A,S,D] Sắp xếp một cột rồi bấm Sửa/Xóa ở Yêu cầu của tôi → mở đúng yêu cầu của dòng đó; Kiểm kê: gõ số đếm không làm dòng nhảy; Lịch sử: sắp xếp rồi "Xem thêm".
 
-| Nhóm | Mục lỗi lần 1 | Sau khi sửa |
-|---|---|---|
-| 1 | 1.01, 1.02, 1.11, 1.17 | Hết lỗi (1.03, 1.12 báo FAIL vì test cũ còn kỳ vọng vạch 4px và admin không bắt buộc chứng từ — hai điều đã đổi theo quyết định) |
-| 2 | 2.12 | Hết lỗi (2.08/2.12 FAIL còn lại là selector/kỳ vọng test cũ: class `member-menu` đã bỏ khỏi link, nút có icon "✎ Sửa") |
-| 3 | 3.02, 3.06, 3.07 | Hết lỗi (3.10 FAIL vì test cũ kỳ vọng CONFIG.org thắng; nay server thắng) |
-| 4 | 4.06, 4.07, 4.13 | Hết lỗi |
-| 5 | 5.04, 5.05, 5.08, 5.09 | 5.08 đạt; 5.04/5.05 còn FAIL do kỳ vọng cũ (thanh dính top:-16px là cách bù padding, đo thực tế sát mép; ô nút trong thẻ có nhãn); đã sửa aria-label nav theo ngôn ngữ |
+## Nhóm 7 — SIM (Sims.html, SimExport.html, Xlsx.html, Sims.js) — `test-sim-server.mjs`, `test-sim-ui.mjs`, `test-sim-export.mjs`, `test-xlsx.mjs`
+- 7.01 [POPS,A] Tab SIM dưới Kho: chỉ team POPS và admin thấy; thêm/sửa/xóa mềm/khôi phục; số điện thoại, người giữ, người liên hệ, ghi chú; người nhập và giờ lấy từ đăng nhập.
+- 7.02 [POPS,A,D+M] Hai ngày tùy chọn "Ngày tạo yêu cầu" và "Ngày nhận SIM": nhập `dd/MM/yyyy` hoặc `yyyy-MM-dd`; ngày sai bị chặn khi lưu; ô ngày cũ không đọc được được giữ nguyên, không bị ghi đè; cả hai cột sắp xếp được.
+- 7.03 [POPS,A,D+M] Thẻ "Xuất báo cáo": đúng 5 cột (Ngày tạo yêu cầu, Ngày nhận SIM, Người nhận, Người giữ, Số thuê bao); lọc theo MỘT trong hai ngày + từ/đến (tùy chọn, tính cả hai đầu), mới nhất lên đầu, SIM đã xóa không có; tên file đúng; EN không lộ khoá chuỗi.
+- 7.04 [POPS,A] CSV có BOM UTF-8; XLSX mở được (kiểm cấu trúc zip/XML bằng test; mở bằng Excel thật là mục tay 8).
+- 7.05 [A] Nhập SIM từ Database cũ (`simImportPreview`/`simImportRun`, chỉ admin; chỉ SIM tồn ròng > 0; Database không bị đụng).
 
-Chưa kiểm chứng được: google.script.history trên deployment thật, Google Sites embed, hộp thoại in, ảnh Drive.
-Test cũ cần cập nhật kỳ vọng: 1.03, 1.12, 2.08, 2.12, 3.10, 5.02, 5.04, 5.05, 5.10.
+## Kiểm bằng tay trên app thật (bộ test dùng dữ liệu giả cho các phần này)
+Làm sau mỗi lần deploy. Hard-reload (Ctrl+F5), mở menu tài khoản: dòng cuối phải đúng `APP_BUILD_ID` vừa phát hành.
+1. **Tổng quan:** "Cần chú ý" = số mã có tồn ≤ 5 (gồm hết hàng, tồn âm) và bấm vào ra đúng số dòng ở Kho; "Nhập trừ xuất, 30 ngày" khớp Sheet; "Tồn lâu" (quá 90 ngày không phát sinh) hợp lý với kho thật; dòng chào: admin thấy số chờ duyệt, staff thấy số yêu cầu của mình.
+2. **POPS:** tab POPS trên thanh trên mở đúng trang; nút "Trang chủ" quay về app chính.
+3. **Email đăng ký mới:** admin bật công tắc nhận email → đăng ký bằng tài khoản thử → email tới; admin không bật → không có email, đăng ký vẫn thành công.
+4. **Google thật:** gửi yêu cầu có ảnh → ảnh lên Drive, xem lại được; Quản lý → Sao lưu → file xuất hiện trong Drive; đăng nhập staff và admin thật, mở từng tab, không lỗi đỏ/trang trắng.
+5. **Nhìn bằng mắt:** màn hình tải xe Grab hiện rồi biến mất, không giật; xanh Grab; thông báo nổi dưới thanh trên (máy tính + điện thoại).
+6. **Báo cáo:** lọc hơn 100 dòng, sắp xếp cột "Tồn" giảm dần, sang trang 2 nối tiếp; bấm Xuất CSV và In → đúng thứ tự đang xem.
+7. **Bàn phím:** mỗi cột sắp xếp được là một điểm dừng Tab trước dòng đầu của bảng (hành vi chuẩn, chưa có "bỏ qua tiêu đề").
+8. **SIM:** mở một file XLSX xuất ra bằng Excel thật (và LibreOffice nếu có); CSV mở bằng Excel en-US có thể đảo ngày/tháng nên XLSX an toàn hơn; trước khi deploy kiểm cột Q:R của sheet `Sim` đang trống.
+
+## Chưa kiểm chứng được bằng harness
+`google.script.history` trên deployment thật, Google Sites embed, hộp thoại in của trình duyệt, ảnh Drive, độ tương phản nút xanh `#00873b` (4,58:1, sát ngưỡng 4,5).
+Biết nhưng chưa xử lý: mục 1.08 từng thất thường khi các thao tác nối nhau trong vài mili giây (nguyên nhân trong app chưa xác định).
