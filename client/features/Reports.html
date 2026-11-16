@@ -392,12 +392,7 @@
     thead.appendChild(trh); table.appendChild(thead);
 
     /* Cột người dùng chọn sắp xếp (TableSort): xếp TOÀN BỘ dòng rồi mới lấy trang đang xem, không chỉ 100 dòng đang hiện */
-    const ss = typeof tsSortState === 'function' ? tsSortState(table) : null;
-    let view = RP.rows;
-    if (ss && RP.cols[ss.col]) {
-      const sc = RP.cols[ss.col];
-      view = tsSortItems(RP.rows, function (r) { const v = r[sc.k]; return sc.n ? num(v) : (v == null || v === '' ? '—' : String(v)); }, ss.dir);
-    }
+    const view = rpSortedRows();
 
     const from = RP.page * RP_PAGE_SIZE, to = Math.min(RP.rows.length, from + RP_PAGE_SIZE);
     const tb = document.createElement('tbody');
@@ -434,6 +429,15 @@
 
   function rpGo(d) { RP.page += d; rpRender(); }
 
+  /* Toàn bộ dòng theo thứ tự đang sắp xếp trên màn hình (không sắp xếp thì giữ thứ tự gốc). Dùng chung cho bảng, CSV và bản in. */
+  function rpSortedRows() {
+    const table = el('rpTable');
+    const ss = table && typeof tsSortState === 'function' ? tsSortState(table) : null;
+    if (!ss || !RP.cols[ss.col]) return RP.rows;
+    const sc = RP.cols[ss.col];
+    return tsSortItems(RP.rows, function (r) { const v = r[sc.k]; return sc.n ? num(v) : (v == null || v === '' ? '—' : String(v)); }, ss.dir);
+  }
+
   /* Đổi cột/chiều sắp xếp: vẽ lại từ trang đầu (thứ tự mới áp cho toàn bộ dòng, không chỉ trang đang xem) */
   document.addEventListener('ts-sorted', function (ev) {
     if (ev.target && ev.target.id === 'rpTable') { RP.page = 0; rpRender(); }
@@ -444,7 +448,7 @@
 
   function rpCsv() {
     const lines = [RP.cols.map(function (c) { return csvCell(c.label); }).join(',')];
-    RP.rows.forEach(function (r) { lines.push(RP.cols.map(function (c) { return csvCell(r[c.k]); }).join(',')); });
+    rpSortedRows().forEach(function (r) { lines.push(RP.cols.map(function (c) { return csvCell(r[c.k]); }).join(',')); });
     downloadCsv(rpFileName() + '.csv', lines);
   }
 
@@ -511,7 +515,7 @@
     const doc = rpPrintDoc({
       title: t('rp.t.' + RP.tab) + ' — ' + t('rp.u.' + RP.unit),
       subtitle: RP.subtitle, by: SESSION ? SESSION.username : '', at: new Date().toLocaleString(LANG === 'en' ? 'en-GB' : 'vi-VN'),
-      logo: logoEl ? logoEl.src : '', summary: RP.summary, cols: RP.cols, rows: RP.rows,
+      logo: logoEl ? logoEl.src : '', summary: RP.summary, cols: RP.cols, rows: rpSortedRows(),
       foot: RP.rows.length ? rpFootCells() : null
     });
 

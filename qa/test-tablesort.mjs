@@ -114,6 +114,20 @@ for (const [label, init, now, ascExpected] of [
     const names = await page.eval(() => { const c = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' }); return RP.rows.map((r) => String(r.name == null || r.name === '' ? '—' : r.name)).sort((a, b) => c.compare(a, b)); });
     const got = await shown('name');
     check('paged report: sorting a text column is global too (page 1 = the 100 alphabetically first names)', (await dirOf('name')) === 'ascending' && got.join('|') === names.slice(0, 100).join('|'), `first="${got[0]}" want "${names[0]}"`);
+
+    /* CSV and print follow the on-screen order (here: name ascending), over ALL rows, not just the visible page */
+    const exp = await page.eval(() => {
+      let csv = null, printed = null;
+      downloadCsv = (name, lines) => { csv = lines; };
+      const orig = rpPrintDoc;
+      rpPrintDoc = (o) => { printed = o.rows.map((r) => r.code); return '<!doctype html><title>x</title>'; };
+      rpCsv(); rpPrint();
+      rpPrintDoc = orig;
+      const codeCol = RP.cols.findIndex((c) => c.k === 'code');
+      return { csvCodes: csv.slice(1).map((l) => l.split(',')[codeCol].replace(/"/g, '')), printed, sorted: rpSortedRows().map((r) => r.code), original: RP.rows.map((r) => r.code) };
+    });
+    check('export: CSV rows are in the on-screen order (all rows)', exp.csvCodes.length === exp.original.length && exp.csvCodes.join() === exp.sorted.join() && exp.csvCodes.join() !== exp.original.join(), `rows=${exp.csvCodes.length} first=${exp.csvCodes[0]} original first=${exp.original[0]}`);
+    check('export: print rows are in the on-screen order (all rows)', exp.printed && exp.printed.join() === exp.sorted.join(), `first=${exp.printed && exp.printed[0]}`);
   } finally { await page.close(); }
 }
 
