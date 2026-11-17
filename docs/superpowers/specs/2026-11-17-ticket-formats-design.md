@@ -47,7 +47,7 @@ Khung chung (A4 ngang, lề 12mm trên-dưới, 14mm trái-phải, vùng in 269m
 5. **Khối ký** ở cuối trang, ô ký cao khoảng 24mm, **không có đường kẻ ngang** trên chỗ ký. **[Bạn chốt 2026-11-17]**
 6. **Không có chân trang** "In lúc ... · tài khoản in". Bỏ hẳn dòng này. **[Bạn chốt 2026-11-17]**
 
-**Toàn bộ chữ và nét trên phiếu là màu đen**, không dùng màu xám hay màu nào khác (phiếu in trắng đen). Áp dụng cho cả ba phiếu. **[Bạn chốt 2026-11-17]** Bảng hàng vẫn giữ lưới ô viền đen liền (bỏ lưới thì bảng không đọc được); chỉ bỏ các đường kẻ ngang trang trí nêu trên. Hai việc này tôi hiểu là "đường kẻ ngang" mà bạn muốn xoá; nếu bạn muốn xoá cả lưới bảng thì báo lại.
+**Toàn bộ chữ và nét trên phiếu là màu đen** (trừ logo, giữ như hiện nay), không dùng màu xám hay màu nào khác (phiếu in trắng đen). Áp dụng cho cả ba phiếu. **[Bạn chốt 2026-11-17]** Bảng hàng vẫn giữ lưới ô viền đen liền (bỏ lưới thì bảng không đọc được); chỉ bỏ các đường kẻ ngang trang trí nêu trên. Hai việc này tôi hiểu là "đường kẻ ngang" mà bạn muốn xoá; nếu bạn muốn xoá cả lưới bảng thì báo lại.
 
 | | Phiếu nhập kho | Phiếu xuất kho | Phiếu giao hàng (mới) |
 |---|---|---|---|
@@ -101,7 +101,7 @@ Bạn chưa cho biết một phiếu thường dài bao nhiêu dòng, nên phi�
 - Nền trắng, chữ đen tuyệt đối, viền liền, phân biệt tiêu đề và hàng tổng bằng độ dày viền chứ không bằng màu nền (quy tắc đang có để in rõ nét).
 - Khối ký dùng `<table>`, không dùng flex (Chrome tính lại chiều cao flex khi in, đường ký rơi xuống đáy trang).
 - `tfoot` trong Chrome mặc định lặp ở mọi trang khi in. Phải ép hàng tổng chỉ hiện một lần ở cuối.
-- Logo lấy từ `.hd-logo` đã nhúng sẵn trên thanh đầu trang (ảnh JPEG Grab: chữ trắng trên nền xanh). **Logo in ra phải trắng đen thật** **[Bạn chốt 2026-11-17]**: chữ Grab đen trên nền trắng, không còn nền xanh (**[Mình chọn]** kiểu chữ đen nền trắng, tiết kiệm mực, thay vì khối đen đặc). Không dựa vào bộ lọc CSS (một số trình điều khiển máy in bỏ qua bộ lọc): đổi ảnh sang đen trắng thật bằng canvas lúc in rồi mới đưa vào phiếu, vẫn dùng được khi chạy offline vì ảnh là data URI. Chỉ áp dụng cho ba phiếu kho; báo cáo (`rpPrint` trong `Reports.html`) dùng chung logo nhưng nằm ngoài phạm vi này. Tên pháp nhân và địa chỉ giữ cách lấy hiện nay (server, rồi CONFIG, rồi hằng dự phòng).
+- Logo lấy từ `.hd-logo` đã nhúng sẵn trên thanh đầu trang, **giữ nguyên như hiện nay (màu gốc, không đổi sang trắng đen)**. **[Bạn chốt 2026-11-17: đã thử trắng đen rồi quay lại như cũ]** Tên pháp nhân và địa chỉ giữ cách lấy hiện nay (server, rồi CONFIG, rồi hằng dự phòng).
 - Bỏ khỏi `buildPrintHtml`: nhãn `addr` ("Địa chỉ (Address):"), dòng chân trang `printed`, đường ký `tr.ln` (code hiện tại không có đường kẻ dưới đầu phiếu; đường đó chỉ có trong bản mẫu v3/v4, nên khi dựng không được thêm vào). Nếu sau khi bỏ mà `TICKET_TXT.addr`, `TICKET_TXT.printed` không còn chỗ dùng thì xoá luôn khỏi bảng nhãn.
 - Hiện **chưa có test** nào cho `buildPrintHtml` trong bộ `qa/`. Thay đổi này phải thêm test cho: số ô ký của từng loại phiếu, nhãn "Người lập phiếu" (không có "Admin"), không còn "Người nhận hàng" trên phiếu nhập/xuất, phiếu xuất nhiều địa điểm vẫn ra đúng một Phiếu giao hàng với "Giao đến" ghi đủ các địa điểm, phiếu nhập không có nút giao hàng.
 - Sau khi làm xong: nâng `APP_BUILD_ID` (`server/config/Version.js`) và `APP_VERSION` (4.4.0 là gợi ý), cập nhật `QA-CHECKLIST.md` (thêm mục in thử cả ba phiếu trên máy in/PDF thật).
