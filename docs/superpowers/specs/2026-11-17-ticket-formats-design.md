@@ -40,12 +40,14 @@ Vì vậy: (1) thêm **Phiếu giao hàng** cho hàng xuất, (2) đưa cả ba 
 
 Khung chung (A4 ngang, lề 12mm trên-dưới, 14mm trái-phải, vùng in 269mm), theo bản mẫu `ticket-set-v3.html` trong `.superpowers/brainstorm/1623-1794825502/content/`:
 
-1. **Đầu phiếu:** bên trái logo + tên pháp nhân + địa chỉ. Bên phải "Số phiếu (No.)" và "Ngày (Date)". Dưới là đường kẻ đậm.
+1. **Đầu phiếu:** bên trái logo + tên pháp nhân + địa chỉ (chỉ ghi địa chỉ, **không** có nhãn "Địa chỉ (Address):"). Bên phải "Số phiếu (No.)" và "Ngày (Date)". Không có đường kẻ ngang bên dưới. **[Bạn chốt 2026-11-17]**
 2. **Tiêu đề** giữa trang, song ngữ.
 3. **Khối thông tin:** 2 hàng, mỗi hàng 2 cặp nhãn–giá trị.
 4. **Bảng hàng** có hàng tổng ở cuối.
-5. **Khối ký** ở cuối trang, ô ký cao khoảng 24mm.
-6. **Chân trang:** "In lúc <ngày giờ> · <tài khoản in>".
+5. **Khối ký** ở cuối trang, ô ký cao khoảng 24mm, **không có đường kẻ ngang** trên chỗ ký. **[Bạn chốt 2026-11-17]**
+6. **Không có chân trang** "In lúc ... · tài khoản in". Bỏ hẳn dòng này. **[Bạn chốt 2026-11-17]**
+
+**Toàn bộ chữ và nét trên phiếu là màu đen**, không dùng màu xám hay màu nào khác (phiếu in trắng đen). Áp dụng cho cả ba phiếu. **[Bạn chốt 2026-11-17]** Bảng hàng vẫn giữ lưới ô viền đen liền (bỏ lưới thì bảng không đọc được); chỉ bỏ các đường kẻ ngang trang trí nêu trên. Hai việc này tôi hiểu là "đường kẻ ngang" mà bạn muốn xoá; nếu bạn muốn xoá cả lưới bảng thì báo lại.
 
 | | Phiếu nhập kho | Phiếu xuất kho | Phiếu giao hàng (mới) |
 |---|---|---|---|
@@ -61,7 +63,7 @@ Khung chung (A4 ngang, lề 12mm trên-dưới, 14mm trái-phải, vùng in 269m
 
 - Phiếu nhập và phiếu xuất: hàng 1 = Người yêu cầu, Bộ phận. Hàng 2 = Khối, Địa điểm. Giữ nguyên bốn trường hiện có và nguồn dữ liệu hiện có (`pic`, `cc`, `dept`, `locList`).
   - Bản mẫu v3 ghi "Nhập tại / Xuất tại: Kho A · Kệ 3-02". Đó là chữ minh hoạ trong bản mẫu, **không** phải trường mới. Giữ nhãn "Địa điểm (Location)" lấy từ cột Location. **[Mình chọn]**
-- Phiếu giao hàng: hàng 1 = Người yêu cầu, Bộ phận. Hàng 2 = **Giao đến (Deliver to)**, một hàng riêng giữa hai đường kẻ, chữ lớn hơn (khoảng 12,5pt), lấy từ cột Location. **[Bạn chốt: điểm đến lấy từ địa điểm có sẵn trên hệ thống do người tạo yêu cầu chọn.]** Không có Khối.
+- Phiếu giao hàng: hàng 1 = Người yêu cầu, Bộ phận. Hàng 2 = **Giao đến (Deliver to)**, một hàng riêng (không có đường kẻ), chữ lớn hơn (khoảng 12,5pt), lấy từ cột Location. **[Bạn chốt: điểm đến lấy từ địa điểm có sẵn trên hệ thống do người tạo yêu cầu chọn.]** Không có Khối.
 
 ### 3.2 Bảng hàng
 
@@ -100,6 +102,7 @@ Bạn chưa cho biết một phiếu thường dài bao nhiêu dòng, nên phi�
 - Khối ký dùng `<table>`, không dùng flex (Chrome tính lại chiều cao flex khi in, đường ký rơi xuống đáy trang).
 - `tfoot` trong Chrome mặc định lặp ở mọi trang khi in. Phải ép hàng tổng chỉ hiện một lần ở cuối.
 - Logo lấy từ `.hd-logo` đã nhúng sẵn trên thanh đầu trang. Tên pháp nhân và địa chỉ giữ cách lấy hiện nay (server, rồi CONFIG, rồi hằng dự phòng).
+- Bỏ khỏi `buildPrintHtml`: nhãn `addr` ("Địa chỉ (Address):"), dòng chân trang `printed`, đường ký `tr.ln` (code hiện tại không có đường kẻ dưới đầu phiếu; đường đó chỉ có trong bản mẫu v3/v4, nên khi dựng không được thêm vào). Nếu sau khi bỏ mà `TICKET_TXT.addr`, `TICKET_TXT.printed` không còn chỗ dùng thì xoá luôn khỏi bảng nhãn.
 - Hiện **chưa có test** nào cho `buildPrintHtml` trong bộ `qa/`. Thay đổi này phải thêm test cho: số ô ký của từng loại phiếu, nhãn "Người lập phiếu" (không có "Admin"), không còn "Người nhận hàng" trên phiếu nhập/xuất, tách phiếu giao hàng theo địa điểm, phiếu nhập không có nút giao hàng.
 - Sau khi làm xong: nâng `APP_BUILD_ID` (`server/config/Version.js`) và `APP_VERSION` (4.4.0 là gợi ý), cập nhật `QA-CHECKLIST.md` (thêm mục in thử cả ba phiếu trên máy in/PDF thật).
 - **Không deploy, không push GitHub** khi chưa có lệnh rõ ràng của bạn trong chat.
@@ -116,7 +119,7 @@ Bạn chưa cho biết một phiếu thường dài bao nhiêu dòng, nên phi�
 1. Bản mẫu v3 đã ổn chưa? (thứ tự khối thông tin, tên nhãn, độ lớn của "Giao đến")
 2. Một phiếu xuất có nhiều địa điểm thì in **mỗi điểm đến một tờ** (đề xuất ở mục 4) hay một tờ ghi cả danh sách địa điểm?
 3. Phiếu nhập/xuất **giữ cột "Vị trí"** (đề xuất ở mục 3.2), hay bỏ như bản mẫu v3?
-4. Nút "In phiếu giao hàng" nằm cạnh "In phiếu" trong thẻ phiếu xuất (đề xuất ở mục 4) có đúng ý bạn không?
+4. ~~Nút "In phiếu giao hàng" nằm cạnh "In phiếu" trong thẻ phiếu xuất~~ **[Bạn chốt 2026-11-17]**, cùng kiểu và cùng cỡ với nút "In phiếu".
 5. Phiếu giao hàng có cần thêm địa chỉ, người liên hệ, số điện thoại nơi nhận? (hiện đề xuất: không)
 6. Với dòng xuất cũ, cột Location có thể là nơi lấy hàng chứ không phải nơi nhận (xem lưu ý ở mục 4). Bạn chấp nhận cách "admin tự xem lại ô Giao đến trước khi in" không, hay cần chọn điểm đến ngay lúc in?
 
