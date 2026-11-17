@@ -951,7 +951,7 @@
      Mỗi mục là [tiếng Việt, tiếng Anh]. Dấu ngoặc ( ) thêm khi render.
      ══════════════════════════════════════════════════════════════ */
   const TICKET_TXT = {
-    addr    : ['Địa chỉ',           'Address'],
+    no      : ['Số phiếu',          'No.'],
     date    : ['Ngày',              'Date'],
     reqBy   : ['Người yêu cầu',     'Requester'],
     team    : ['Bộ phận',           'Team'],
@@ -970,8 +970,7 @@
     total   : ['Tổng số lượng',     'Total quantity'],
     sgMake  : ['NGƯỜI LẬP PHIẾU',   'Prepared by'],
     sgRecv  : ['NGƯỜI NHẬN HÀNG',   'Received by'],
-    sgNote  : ['Ký, ghi rõ họ tên', ''],
-    printed : ['In lúc',            '']
+    sgNote  : ['Ký, ghi rõ họ tên', '']
   };
 
   /** Ô tiêu đề bảng: dòng VI đậm + dòng EN nhỏ in nghiêng. */
@@ -1022,16 +1021,17 @@
    *
    * ── CỘT GHI CHÚ luôn để TRỐNG — người nhận viết tay khi kiểm hàng.
    * ── CHỮ KÝ dùng <table>, KHÔNG dùng flex (Chrome tính lại chiều cao flex
-   *    khi in làm đường kẻ rơi xuống đáy trang).
+   *    khi in làm khối ký rơi xuống đáy trang).
+   *    Phiếu nhập/xuất chỉ MỘT ô ký (Người lập phiếu) ở bên TRÁI.
+   *
+   * ── kind: bỏ trống = Phiếu nhập/xuất (mặc định). 'delivery' = Phiếu giao
+   *    hàng, sẽ bổ sung ở bước sau; hiện chưa dùng.
    */
-  function buildPrintHtml(list) {
+  function buildPrintHtml(list, kind) {
     /* Pháp nhân + địa chỉ: SERVER thắng — TICKETS.orgName / orgAddress (getTickets trả về);
        rỗng thì dùng CONFIG.org / CONFIG.address, rồi mới tới hằng TICKET_ORG / TICKET_ADDR. */
     const org  = (TICKETS && TICKETS.orgName) || (CONFIG && CONFIG.org) || TICKET_ORG;
     const addr = (TICKETS && TICKETS.orgAddress) || (CONFIG && CONFIG.address) || TICKET_ADDR;
-
-    const printedAt = new Date().toLocaleString(LANG === 'en' ? 'en-GB' : 'vi-VN');
-    const printedBy = SESSION ? SESSION.username : '';
 
     /* 0 = KHÔNG chèn dòng trống, bảng chỉ đúng số mặt hàng thực tế.
        Đặt số > 0 nếu muốn chừa chỗ ghi tay. */
@@ -1057,18 +1057,20 @@
       '.org{ font-size:13pt; font-weight:bold; text-transform:uppercase;' +
         ' letter-spacing:.3pt; line-height:1.2; }' +
       '.addr{ margin-top:3pt; font-size:9.5pt; line-height:1.4; }' +
-      '.addr i{ font-style:italic; }' +
-      '.addr .k{ white-space:nowrap; }' +
       '.addr .seg{ white-space:nowrap; }' +
+
+      /* Số phiếu + Ngày: góc phải đầu phiếu */
+      'table.brand td.nc{ width:84mm; vertical-align:top; }' +
+      '.no{ text-align:right; font-size:9.5pt; line-height:1.5; }' +
+      '.no i{ font-style:italic; }' +
+      '.no b{ font-family:"Courier New",monospace; font-size:10.5pt;' +
+        ' overflow-wrap:anywhere; }' +
 
       '.band{ margin-top:9pt; text-align:center; }' +
       '.ttl{ font-size:16pt; font-weight:bold; text-transform:uppercase;' +
         ' letter-spacing:.6pt; line-height:1.15; white-space:nowrap; }' +
       '.ttlEn{ margin-top:2pt; font-size:10pt; font-style:italic;' +
         ' font-weight:bold; white-space:nowrap; }' +
-      '.dt{ margin-top:7pt; font-size:10pt; }' +
-      '.dt i{ font-style:italic; }' +
-      '.dt b{ font-weight:bold; }' +
 
       /* ═══ KHỐI THÔNG TIN — (44 + 90) × 2 = 268mm ═══ */
       'table.info{ width:100%; table-layout:fixed; margin-bottom:9pt;' +
@@ -1103,18 +1105,24 @@
       'td.note{ height:10mm; }' +
       'table.it tr.fill td{ height:7mm; }' +
 
-      /* ═══ CHỮ KÝ ═══ */
-      'table.sg{ width:100%; table-layout:fixed; margin-top:12pt;' +
-        ' text-align:center; page-break-inside:avoid; }' +
-      'table.sg td{ width:50%; padding:0 38mm; vertical-align:top; }' +
-      'table.sg .rl td{ font-size:10pt; font-weight:bold;' +
-        ' letter-spacing:.4pt; white-space:nowrap; }' +
-      'table.sg .nt td{ font-size:8.5pt; font-style:italic;' +
-        ' padding-top:2pt; line-height:1.35; }' +
-      'table.sg .sp td{ height:17mm; }' +
-      'table.sg .ln td{ border-top:.75pt solid #000; height:1pt; padding:0 38mm; }' +
+      /* ═══ PHIẾU DÀI NHIỀU TRANG ═══
+         Dòng tiêu đề lặp đầu mỗi trang; hàng tổng (tfoot) CHỈ in một lần ở
+         cuối bảng (Chrome mặc định lặp tfoot mọi trang); dòng hàng không bị
+         cắt đôi giữa hai trang. */
+      'thead{display:table-header-group}' +
+      'tfoot{display:table-row-group}' +
+      'table.it tr{page-break-inside:avoid}' +
 
-      '.ft{ margin-top:13pt; font-size:8pt; text-align:right; }' +
+      /* ═══ CHỮ KÝ — một ô bên trái, 34% bề rộng, không đường kẻ ═══ */
+      'table.sg{ width:100%; table-layout:fixed; margin-top:12pt;' +
+        ' page-break-inside:avoid; }' +
+      'table.sg td{ vertical-align:top; padding:0; }' +
+      'table.sg td.sgc{ width:34%; text-align:center; }' +
+      '.sgc .rl{ font-size:10pt; font-weight:bold;' +
+        ' letter-spacing:.4pt; white-space:nowrap; }' +
+      '.sgc .nt{ font-size:8.5pt; font-style:italic;' +
+        ' padding-top:2pt; line-height:1.35; }' +
+      '.sgc .gap{ height:24mm; }' +
 
       /* ═══ Thanh nút (không in ra giấy) ═══ */
       '.bar{ position:fixed; top:0; left:0; right:0; padding:10px; z-index:9;' +
@@ -1161,24 +1169,25 @@
 
         '<div class="hdBox">' +
 
-          /* ── DẢI 1: logo | tên công ty + địa chỉ ── */
+          /* ── DẢI 1: logo | tên công ty + địa chỉ (không nhãn) | Số phiếu + Ngày ── */
           '<table class="brand"><tbody><tr>' +
             '<td class="lg">' + ticketLogoHtml() + '</td>' +
             '<td>' +
               '<div class="org">' + escapeHtml(org) + '</div>' +
-              '<div class="addr"><span class="k">' + TICKET_TXT.addr[0] +
-                ' <i>(' + TICKET_TXT.addr[1] + ')</i>:</span> ' +
-                addrHtml(addr) + '</div>' +
+              '<div class="addr">' + addrHtml(addr) + '</div>' +
             '</td>' +
+            '<td class="nc"><div class="no">' +
+              TICKET_TXT.no[0] + ' <i>(' + TICKET_TXT.no[1] + ')</i>: ' +
+                '<b>' + escapeHtml(g.ticketId) + '</b><br>' +
+              TICKET_TXT.date[0] + ' <i>(' + TICKET_TXT.date[1] + ')</i>: ' +
+                '<b>' + escapeHtml(g.dateVn) + '</b>' +
+            '</div></td>' +
           '</tr></tbody></table>' +
 
-          /* ── DẢI 2: tiêu đề, rồi Ngày ở ngay dưới ── */
+          /* ── DẢI 2: tiêu đề ── */
           '<div class="band">' +
             '<div class="ttl">' + doc[0] + '</div>' +
             '<div class="ttlEn">(' + doc[1] + ')</div>' +
-            '<div class="dt">' + TICKET_TXT.date[0] +
-              ' <i>(' + TICKET_TXT.date[1] + ')</i>: ' +
-              '<b>' + escapeHtml(g.dateVn) + '</b></div>' +
           '</div>' +
 
         '</div>' +
@@ -1231,21 +1240,15 @@
           '</tr></tfoot>' +
         '</table>' +
 
-        '<table class="sg"><tbody>' +
-          '<tr class="rl">' +
-            '<td>' + TICKET_TXT.sgMake[0] + '</td>' +
-            '<td>' + TICKET_TXT.sgRecv[0] + '</td>' +
-          '</tr>' +
-          '<tr class="nt">' +
-            '<td>(' + TICKET_TXT.sgMake[1] + ')<br>' + TICKET_TXT.sgNote[0] + '</td>' +
-            '<td>(' + TICKET_TXT.sgRecv[1] + ')<br>' + TICKET_TXT.sgNote[0] + '</td>' +
-          '</tr>' +
-          '<tr class="sp"><td></td><td></td></tr>' +
-          '<tr class="ln"><td></td><td></td></tr>' +
-        '</tbody></table>' +
-
-        '<div class="ft">' + TICKET_TXT.printed[0] + ' ' + printedAt +
-          ' · ' + escapeHtml(printedBy) + '</div>' +
+        /* Một ô ký bên trái (Người lập phiếu); ô còn lại để trống */
+        '<table class="sg"><tbody><tr>' +
+          '<td class="sgc">' +
+            '<div class="rl">' + TICKET_TXT.sgMake[0] + '</div>' +
+            '<div class="nt">(' + TICKET_TXT.sgMake[1] + ')<br>' + TICKET_TXT.sgNote[0] + '</div>' +
+            '<div class="gap"></div>' +
+          '</td>' +
+          '<td></td>' +
+        '</tr></tbody></table>' +
       '</div>';
     }).join('');
 
