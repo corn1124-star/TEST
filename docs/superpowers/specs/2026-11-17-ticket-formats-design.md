@@ -86,10 +86,10 @@ Bạn chưa cho biết một phiếu thường dài bao nhiêu dòng, nên phi�
 
 - Trong thẻ của mỗi phiếu **xuất** ở trang Phiếu kho, thêm nút "In phiếu giao hàng" cạnh nút "In phiếu". Phiếu nhập không có nút này.
 - Phiếu giao hàng dùng **đúng danh sách hàng của phiếu xuất tương ứng** (cùng ngày, cùng người yêu cầu).
-- Một Phiếu giao hàng chỉ có **một điểm đến** vì chỉ có một người nhận ký. Phiếu xuất gom theo ngày + người yêu cầu + loại, nên một phiếu xuất có thể có nhiều Location khác nhau. Khi đó bấm nút sẽ in **mỗi điểm đến một Phiếu giao hàng**, mỗi tờ chỉ gồm các dòng hàng của điểm đến đó. Mã phiếu của các tờ này thêm hậu tố địa điểm để không trùng nhau. Phiếu xuất chỉ có một địa điểm thì in một tờ. **Câu hỏi này đang chờ bạn xác nhận** (xem mục 7).
-- Dòng hàng không có Location: vẫn in được. Ô "Giao đến" để trống cho người ký ghi tay. Các dòng này gom thành một tờ riêng, đứng **cuối**. Các tờ còn lại sắp theo tên địa điểm. **[Mình chọn]**
-- Mỗi tờ là một chứng từ độc lập: STT đánh lại từ 1, hàng tổng (số lượng, số thùng) tính lại theo các dòng của tờ đó. Nhiều tờ nằm trong cùng một cửa sổ in, mỗi tờ bắt đầu ở trang mới. Nếu một tờ dài hơn một trang thì quy tắc ở mục 3.3 áp dụng cho từng tờ. **[Mình chọn]**
-- **Lưu ý về dữ liệu:** `DB-REDESIGN.md` (rủi ro R1) ghi rằng cột Location của dòng xuất cũ có thể có hai nghĩa: nơi giữ hàng hoặc nơi nhận. Form xuất hiện nay ghi "Xuất đến" nên dữ liệu mới nên đúng là điểm đến, nhưng dòng cũ hoặc dòng admin nhập trực tiếp có thể ghi nơi lấy hàng. Phiếu giao hàng tin vào Location như hiện có. **Admin xem lại ô "Giao đến" trên bản xem trước trước khi in**, vì app không phân biệt được hai trường hợp. Thêm cách chọn điểm đến lúc in chỉ làm nếu bạn yêu cầu (mục 7, câu 2).
+- Mỗi phiếu xuất in **đúng một** Phiếu giao hàng, chứa toàn bộ dòng hàng của phiếu xuất đó. **[Bạn chốt 2026-11-17]** Nếu phiếu xuất có nhiều địa điểm (cột Location khác nhau), ô "Giao đến" ghi tất cả địa điểm, cách nhau bằng dấu phẩy (đúng như ô "Địa điểm" trên phiếu xuất hiện nay, `locList`). Không tách tờ theo địa điểm.
+- Dòng hàng không có Location: vẫn in được. Nếu không dòng nào có Location thì ô "Giao đến" để trống cho người ký ghi tay. **[Mình chọn]**
+- Phiếu dài quá một trang thì áp dụng quy tắc ở mục 3.3. STT đánh từ 1 theo thứ tự dòng của phiếu xuất. **[Mình chọn]**
+- **Lưu ý về dữ liệu:** `DB-REDESIGN.md` (rủi ro R1) ghi rằng cột Location của dòng xuất cũ có thể có hai nghĩa: nơi giữ hàng hoặc nơi nhận. Form xuất hiện nay ghi "Xuất đến" nên dữ liệu mới nên đúng là điểm đến, nhưng dòng cũ hoặc dòng admin nhập trực tiếp có thể ghi nơi lấy hàng. Phiếu giao hàng tin vào Location như hiện có. **Admin xem lại ô "Giao đến" trên bản xem trước trước khi in**, vì app không phân biệt được hai trường hợp. Thêm cách chọn điểm đến lúc in chỉ làm nếu bạn yêu cầu (mục 7, câu 6).
 - "In tất cả" (`printAllTickets`) giữ nguyên: chỉ in các phiếu nhập/xuất, **không** gồm Phiếu giao hàng. **[Mình chọn]**
 - Tất cả tính toán ở **phía trình duyệt** từ dữ liệu `getTickets` đã có (mỗi dòng hàng đã có trường vị trí đích). Không cần đổi server, không cần thêm cột Google Sheets, không lưu gì thêm.
 
@@ -103,21 +103,20 @@ Bạn chưa cho biết một phiếu thường dài bao nhiêu dòng, nên phi�
 - `tfoot` trong Chrome mặc định lặp ở mọi trang khi in. Phải ép hàng tổng chỉ hiện một lần ở cuối.
 - Logo lấy từ `.hd-logo` đã nhúng sẵn trên thanh đầu trang. Tên pháp nhân và địa chỉ giữ cách lấy hiện nay (server, rồi CONFIG, rồi hằng dự phòng).
 - Bỏ khỏi `buildPrintHtml`: nhãn `addr` ("Địa chỉ (Address):"), dòng chân trang `printed`, đường ký `tr.ln` (code hiện tại không có đường kẻ dưới đầu phiếu; đường đó chỉ có trong bản mẫu v3/v4, nên khi dựng không được thêm vào). Nếu sau khi bỏ mà `TICKET_TXT.addr`, `TICKET_TXT.printed` không còn chỗ dùng thì xoá luôn khỏi bảng nhãn.
-- Hiện **chưa có test** nào cho `buildPrintHtml` trong bộ `qa/`. Thay đổi này phải thêm test cho: số ô ký của từng loại phiếu, nhãn "Người lập phiếu" (không có "Admin"), không còn "Người nhận hàng" trên phiếu nhập/xuất, tách phiếu giao hàng theo địa điểm, phiếu nhập không có nút giao hàng.
+- Hiện **chưa có test** nào cho `buildPrintHtml` trong bộ `qa/`. Thay đổi này phải thêm test cho: số ô ký của từng loại phiếu, nhãn "Người lập phiếu" (không có "Admin"), không còn "Người nhận hàng" trên phiếu nhập/xuất, phiếu xuất nhiều địa điểm vẫn ra đúng một Phiếu giao hàng với "Giao đến" ghi đủ các địa điểm, phiếu nhập không có nút giao hàng.
 - Sau khi làm xong: nâng `APP_BUILD_ID` (`server/config/Version.js`) và `APP_VERSION` (4.4.0 là gợi ý), cập nhật `QA-CHECKLIST.md` (thêm mục in thử cả ba phiếu trên máy in/PDF thật).
 - **Không deploy, không push GitHub** khi chưa có lệnh rõ ràng của bạn trong chat.
 
 ## 6. Việc để người xây tự quyết
 
 - Chi tiết CSS, cỡ chữ, khoảng cách miễn là khớp bản mẫu v3 và các ràng buộc ở mục 5.
-- Cách đặt hậu tố địa điểm trong mã `PGH_...` khi phiếu xuất tách nhiều điểm đến (miễn là duy nhất và đọc được).
 - Cách tổ chức code: tách `buildPrintHtml` thành các hàm nhỏ dùng chung khung, hay giữ một hàm có tham số theo loại phiếu.
 - Chữ nhãn song ngữ cho các từ mới (Giao đến / Deliver to, Shipper, PHIẾU GIAO HÀNG / DELIVERY NOTE). Các cụm này lấy từ bản mẫu v3.
 
 ## 7. Những điều còn chờ bạn
 
-1. Bản mẫu v3 đã ổn chưa? (thứ tự khối thông tin, tên nhãn, độ lớn của "Giao đến")
-2. Một phiếu xuất có nhiều địa điểm thì in **mỗi điểm đến một tờ** (đề xuất ở mục 4) hay một tờ ghi cả danh sách địa điểm?
+1. Bản mẫu v6 (bản mới nhất) đã ổn chưa? (thứ tự khối thông tin, tên nhãn, độ lớn của "Giao đến")
+2. ~~Một phiếu xuất nhiều địa điểm: mỗi điểm một tờ~~ **[Bạn chốt 2026-11-17]**: chỉ in một Phiếu giao hàng.
 3. Phiếu nhập/xuất **giữ cột "Vị trí"** (đề xuất ở mục 3.2), hay bỏ như bản mẫu v3?
 4. ~~Nút "In phiếu giao hàng" nằm cạnh "In phiếu" trong thẻ phiếu xuất~~ **[Bạn chốt 2026-11-17]**, cùng kiểu và cùng cỡ với nút "In phiếu".
 5. Phiếu giao hàng có cần thêm địa chỉ, người liên hệ, số điện thoại nơi nhận? (hiện đề xuất: không)
