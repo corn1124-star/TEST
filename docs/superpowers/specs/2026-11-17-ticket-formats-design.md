@@ -1,6 +1,6 @@
 # Thiết kế: format phiếu kho mới + Phiếu giao hàng
 
-Ngày viết: 2026-11-17. Trạng thái: **bản nháp chờ duyệt**, chưa có code.
+Ngày viết: 2026-11-17. Trạng thái: **đã duyệt 2026-11-17 (đồng ý với mặc định)**.
 Ứng dụng: SEC WH (Apps Script + Google Sheets), trang "Phiếu kho" (chỉ admin).
 
 Quy ước trong tài liệu: **[Bạn chốt]** = người dùng đã nói rõ. **[Mình chọn]** = lựa chọn của Claude khi người dùng chưa trả lời, cần được xem lại. Phần không gắn nhãn là hệ quả kỹ thuật của hai loại trên.
@@ -103,7 +103,7 @@ Bạn chưa cho biết một phiếu thường dài bao nhiêu dòng, nên phi�
 - `tfoot` trong Chrome mặc định lặp ở mọi trang khi in. Phải ép hàng tổng chỉ hiện một lần ở cuối.
 - Logo lấy từ `.hd-logo` đã nhúng sẵn trên thanh đầu trang, **giữ nguyên như hiện nay (màu gốc, không đổi sang trắng đen)**. **[Bạn chốt 2026-11-17: đã thử trắng đen rồi quay lại như cũ]** Tên pháp nhân và địa chỉ giữ cách lấy hiện nay (server, rồi CONFIG, rồi hằng dự phòng).
 - Bỏ khỏi `buildPrintHtml`: nhãn `addr` ("Địa chỉ (Address):"), dòng chân trang `printed`, đường ký `tr.ln` (code hiện tại không có đường kẻ dưới đầu phiếu; đường đó chỉ có trong bản mẫu v3/v4, nên khi dựng không được thêm vào). Nếu sau khi bỏ mà `TICKET_TXT.addr`, `TICKET_TXT.printed` không còn chỗ dùng thì xoá luôn khỏi bảng nhãn.
-- Hiện **chưa có test** nào cho `buildPrintHtml` trong bộ `qa/`. Thay đổi này phải thêm test cho: số ô ký của từng loại phiếu, nhãn "Người lập phiếu" (không có "Admin"), không còn "Người nhận hàng" trên phiếu nhập/xuất, phiếu xuất nhiều địa điểm vẫn ra đúng một Phiếu giao hàng với "Giao đến" ghi đủ các địa điểm, phiếu nhập không có nút giao hàng.
+- In phiếu đã có test 3.10 trong `qa/test-group3.mjs` (thay đổi này cập nhật nó) và bộ mới `qa/test-tickets.mjs`. Bộ mới phủ: số ô ký của từng loại phiếu, nhãn "Người lập phiếu" (không có "Admin"), không còn "Người nhận hàng" trên phiếu nhập/xuất, phiếu xuất nhiều địa điểm vẫn ra đúng một Phiếu giao hàng với "Giao đến" ghi đủ các địa điểm, phiếu nhập không có nút giao hàng.
 - Sau khi làm xong: nâng `APP_BUILD_ID` (`server/config/Version.js`) và `APP_VERSION` (4.4.0 là gợi ý), cập nhật `QA-CHECKLIST.md` (thêm mục in thử cả ba phiếu trên máy in/PDF thật).
 - **Không deploy, không push GitHub** khi chưa có lệnh rõ ràng của bạn trong chat.
 

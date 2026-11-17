@@ -1,4 +1,4 @@
-# SEC WH — QA checklist (cập nhật 2026-11-16, bản v4.3.0 + nhánh SIM)
+# SEC WH — QA checklist (cập nhật 2026-11-17, bản v4.4.0 + nhánh SIM)
 
 Cách test tự động: harness trình duyệt thật (Chrome headless + CDP) nạp `client/Index.html` với `google.script.run` giả (mock) — xem `qa/README.md`. Chạy từng bộ một, không chạy song song (song song làm vài bài thất thường); kết quả in PASS/FAIL, thoát mã 0 khi xanh.
 Viewport: D = 1440×900, M = 390×844 (điện thoại, cảm ứng). Vai trò: A = admin, S = staff. Mỗi mục chạy cả VI và EN khi có chuỗi mới.
@@ -46,6 +46,7 @@ Phần "Kiểm bằng tay trên app thật" ở cuối là những gì bộ test
 - 3.09 [A,D] Mỗi thẻ phiếu có phần mở rộng liệt kê mặt hàng (mã, tên+biến thể, SL, đơn vị, bin) đúng với g.items.
 - 3.10 [A,D] In phiếu: tài liệu in dùng logo data-URI (không có URL thicao.com), TICKET_ORG/ADDR được CONFIG.org/address ghi đè nếu có; popup bị chặn (mô phỏng window.open → null) → in qua iframe ẩn, không in đôi; cả 2 thất bại → toast.
 - 3.11 [A,M] Bảng Duyệt / Người dùng ở 390: dạng thẻ, ô checkbox + nút hành động bấm được; menu "Thêm" mở dạng sheet dưới, không che nav dưới.
+- 3.12 [A,D] `test-tickets.mjs` — format phiếu và Phiếu giao hàng. Phiếu nhập/xuất: một ô ký "NGƯỜI LẬP PHIẾU" bên trái (không còn "Người nhận hàng", "Admin"), không dòng "In lúc", nhãn Địa chỉ bỏ, 8 cột có Vị trí, chỉ #000/#fff, phiếu 40 dòng: thead lặp, tfoot một lần. Phiếu giao hàng (nút "In phiếu giao hàng" chỉ ở thẻ phiếu xuất): một tờ, số PGH_…, 7 cột không có Vị trí, ba ô ký (Người lập phiếu, Shipper, Người nhận hàng) rộng bằng nhau, "Giao đến" ghi đủ các địa điểm (không có Location → để trống), tổng SL khớp phiếu, thoát HTML đúng, "In tất cả" không chứa phiếu giao hàng; EN: nút "Print delivery note".
 
 ## Nhóm 4 — Kiểm kê, Báo cáo, SKU (Stocktake*.html, Reports.html, Sku.html)
 - 4.01 [A,D] Đếm mù mặc định BẬT khi đợt đang đếm: dòng chưa lưu số đếm hiện "—" ở Hệ thống/Chênh lệch/Kết quả, không có vạch màu và không có ghi chú "tồn đã đổi"; gõ số vào ô KHÔNG làm lộ kết quả.
@@ -98,6 +99,8 @@ Làm sau mỗi lần deploy. Hard-reload (Ctrl+F5), mở menu tài khoản: dòn
 6. **Báo cáo:** lọc hơn 100 dòng, sắp xếp cột "Tồn" giảm dần, sang trang 2 nối tiếp; bấm Xuất CSV và In → đúng thứ tự đang xem.
 7. **Bàn phím:** mỗi cột sắp xếp được là một điểm dừng Tab trước dòng đầu của bảng (hành vi chuẩn, chưa có "bỏ qua tiêu đề").
 8. **SIM:** mở một file XLSX xuất ra bằng Excel thật (và LibreOffice nếu có); CSV mở bằng Excel en-US có thể đảo ngày/tháng nên XLSX an toàn hơn; trước khi deploy kiểm cột Q:R của sheet `Sim` đang trống.
+
+9. **In phiếu (v4.4.0):** in một Phiếu nhập, một Phiếu xuất và một Phiếu giao hàng ra PDF hoặc máy in thật, chế độ đen trắng: chữ rõ, viền liền, khung ký đủ chỗ; kiểm một phiếu khoảng 40 dòng: hàng tiêu đề lặp ở trang 2, hàng tổng và khối ký chỉ ở trang cuối và không nằm trơ trọi một mình trên một trang (nếu nằm một mình thì ghi lại để báo cho người dùng); kiểm một phiếu xuất cũ mà Location là nơi lấy hàng chứ không phải nơi nhận: admin phải xem lại ô "Giao đến" trước khi in.
 
 ## Chưa kiểm chứng được bằng harness
 `google.script.history` trên deployment thật, Google Sites embed, hộp thoại in của trình duyệt, ảnh Drive, độ tương phản nút xanh `#00873b` (4,58:1, sát ngưỡng 4,5).
