@@ -702,7 +702,7 @@ async function t310(lang) {
   check(`[${lang}] legal entity + address from the server (the fixture sends the same text as the built-in constants) present; address split in nowrap segments`, html.includes('CÔNG TY TNHH GRAB') && html.includes('<span class="seg">Tầng 15</span>') && html.includes('<span class="seg">Thành phố Hồ Chí Minh</span>'), '');
   check(`[${lang}] ticket content: requester, date, first item code, one .ticket block`, html.includes(g0.pic) && html.includes(g0.dateVn) && html.includes(g0.code.split('-').join('-<wbr>')) && (html.match(/<div class="ticket">/g) || []).length === 1, JSON.stringify(g0));
   check(`[${lang}] one printScript (auto print inside the doc itself) + screen toolbar`, (html.match(/window\.print\(\)/g) || []).length === 2 && (html.match(/<script>/g) || []).length === 1 && html.includes('class="bar"'), `window.print() x${(html.match(/window\.print\(\)/g) || []).length}`);
-  check(`[${lang}] bilingual labels present (no "Địa chỉ" label, no "In lúc" footer)`, ['PHIẾU XUẤT KHO', 'PHIẾU NHẬP KHO', 'EXPORT TICKET', 'Prepared by', 'Cartons'].filter((s) => html.includes(s)).length >= 4 && !html.includes('Địa chỉ') && !html.includes('In lúc'));
+  check(`[${lang}] bilingual labels present (no "Địa chỉ" label, no "In lúc" footer)`, ['PHIẾU XUẤT KHO', 'PHIẾU NHẬP KHO', 'EXPORT TICKET', 'IMPORT TICKET', 'Prepared by', 'Cartons'].filter((s) => html.includes(s)).length >= 4 && !html.includes('Địa chỉ') && !html.includes('In lúc'));
   check(`[${lang}] tfoot total row present`, /<tfoot>[\s\S]*Tổng số lượng/.test(html));
 
   // print-all

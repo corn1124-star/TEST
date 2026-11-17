@@ -870,6 +870,12 @@
 
           '<button class="btn ghost sm" onclick="printTicket(' + idx + ')">' +
             icon('printer') + '<span>' + t('ticket.printOne') + '</span></button>' +
+
+          /* Phiếu giao hàng: chỉ phiếu xuất. Chưa có icon xe tải -> dùng icon máy in. */
+          (g.type === 'Export'
+            ? '<button class="btn ghost sm tk-deliver" onclick="printDelivery(' + idx + ')">' +
+                icon('printer') + '<span>' + t('ticket.printDelivery') + '</span></button>'
+            : '') +
         '</div>' +
         tkItemsHtml(g);
 
@@ -883,6 +889,17 @@
   function printTicket(idx) {
     if (!TICKETS || !TICKETS.rows[idx]) return;
     openPrintWindow(buildPrintHtml([TICKETS.rows[idx]]));
+  }
+
+  /** Mã Phiếu giao hàng: PX_<ngày>_<team>_<người> -> PGH_<ngày>_<team>_<người>. */
+  function deliveryNoteId(g) {
+    return String(g.ticketId || '').replace(/^PX_/, 'PGH_');
+  }
+
+  /** In Phiếu giao hàng của MỘT phiếu xuất (một tờ, dù có nhiều địa điểm). Phiếu nhập: bỏ qua. */
+  function printDelivery(idx) {
+    if (!TICKETS || !TICKETS.rows[idx] || TICKETS.rows[idx].type !== 'Export') return;
+    openPrintWindow(buildPrintHtml([TICKETS.rows[idx]], 'delivery'));
   }
 
   function printAllTickets() {
@@ -959,6 +976,8 @@
     loc     : ['Địa điểm',          'Location'],
     docIn   : ['PHIẾU NHẬP KHO',    'IMPORT TICKET'],
     docOut  : ['PHIẾU XUẤT KHO',    'EXPORT TICKET'],
+    docDel  : ['PHIẾU GIAO HÀNG',   'DELIVERY NOTE'],
+    deliverTo: ['Giao đến',         'Deliver to'],
     colIdx  : ['STT',               'No.'],
     colCode : ['Mã tài sản',        'Asset code'],
     colName : ['Tên hàng',          'Item name'],
@@ -969,6 +988,7 @@
     colNote : ['Ghi chú',           'Remarks'],
     total   : ['Tổng số lượng',     'Total quantity'],
     sgMake  : ['NGƯỜI LẬP PHIẾU',   'Prepared by'],
+    sgShip  : ['SHIPPER',           'Shipper'],
     sgRecv  : ['NGƯỜI NHẬN HÀNG',   'Received by'],
     sgNote  : ['Ký, ghi rõ họ tên', '']
   };
@@ -981,6 +1001,15 @@
   /** Nhãn khối thông tin: "Bộ phận (Team):" — 1 dòng, không ngắt. */
   function lbBi(p) {
     return '<td class="lb">' + p[0] + ' <i>(' + p[1] + ')</i>:</td>';
+  }
+
+  /** Một ô ký: nhãn VI đậm, (EN) + "Ký, ghi rõ họ tên", rồi khoảng trống để ký. */
+  function sgBox(p) {
+    return '<td class="sgc">' +
+      '<div class="rl">' + p[0] + '</div>' +
+      '<div class="nt">(' + p[1] + ')<br>' + TICKET_TXT.sgNote[0] + '</div>' +
+      '<div class="gap"></div>' +
+    '</td>';
   }
 
   /**
@@ -1013,10 +1042,11 @@
    * ── IN RÕ NÉT (không mờ) ──
    *  Nền TRẮNG toàn bộ · chữ #000 tuyệt đối · viền bảng 1pt liền
    *  · phân biệt header và hàng tổng bằng viền 1.5pt, KHÔNG bằng nền màu
-   *  · không đường kẻ trang trí · đường ký nét liền.
+   *  · không đường kẻ trang trí · không đường kẻ trên chỗ ký.
    *
    * ── KHỔ GIẤY ── A4 NGANG, lề 12mm/14mm -> vùng in rộng ĐÚNG 269mm.
    *   Bảng 8 cột: 12 + 40 + auto(80) + 17 + 17 + 17 + 26 + 60 = 269mm
+   *   Phiếu giao hàng 7 cột (bỏ Vị trí): 12 + 42 + auto(105) + 18 + 18 + 18 + 56 = 269mm
    *   Khối thông tin: (44 + 90) × 2 = 268mm
    *
    * ── CỘT GHI CHÚ luôn để TRỐNG — người nhận viết tay khi kiểm hàng.
@@ -1025,7 +1055,8 @@
    *    Phiếu nhập/xuất chỉ MỘT ô ký (Người lập phiếu) ở bên TRÁI.
    *
    * ── kind: bỏ trống = Phiếu nhập/xuất (mặc định). 'delivery' = Phiếu giao
-   *    hàng, sẽ bổ sung ở bước sau; hiện chưa dùng.
+   *    hàng của phiếu xuất: 7 cột (không Vị trí), "Giao đến" = locList,
+   *    BA ô ký (Người lập phiếu · Shipper · Người nhận hàng), mã PGH_...
    */
   function buildPrintHtml(list, kind) {
     /* Pháp nhân + địa chỉ: SERVER thắng — TICKETS.orgName / orgAddress (getTickets trả về);
@@ -1036,6 +1067,7 @@
     /* 0 = KHÔNG chèn dòng trống, bảng chỉ đúng số mặt hàng thực tế.
        Đặt số > 0 nếu muốn chừa chỗ ghi tay. */
     const MIN_ROWS = 0;
+    const isDel = kind === 'delivery';
 
     const css =
       '@page{ size:A4 landscape; margin:12mm 14mm; }' +
@@ -1081,6 +1113,9 @@
       'table.info td.vl{ width:90mm; font-weight:bold; padding-right:6mm;' +
         ' word-wrap:break-word; overflow-wrap:break-word; }' +
 
+      /* Phiếu giao hàng: "Giao đến" một hàng riêng, chữ lớn hơn */
+      'table.info tr.to td.vl{ font-size:12.5pt; font-weight:bold; }' +
+
       /* ═══ BẢNG MẶT HÀNG — nền TRẮNG hoàn toàn ═══ */
       'table.it{ width:100%; table-layout:fixed; font-size:9.5pt;' +
         ' margin-bottom:11pt; }' +
@@ -1113,11 +1148,11 @@
       'tfoot{display:table-row-group}' +
       'table.it tr{page-break-inside:avoid}' +
 
-      /* ═══ CHỮ KÝ — một ô bên trái, 34% bề rộng, không đường kẻ ═══ */
+      /* ═══ CHỮ KÝ — nhập/xuất: một ô bên trái 34% · giao hàng: ba ô đều nhau; không đường kẻ ═══ */
       'table.sg{ width:100%; table-layout:fixed; margin-top:12pt;' +
         ' page-break-inside:avoid; }' +
       'table.sg td{ vertical-align:top; padding:0; }' +
-      'table.sg td.sgc{ width:34%; text-align:center; }' +
+      'table.sg td.sgc{ width:' + (isDel ? '33.33%' : '34%') + '; text-align:center; }' +
       '.sgc .rl{ font-size:10pt; font-weight:bold;' +
         ' letter-spacing:.4pt; white-space:nowrap; }' +
       '.sgc .nt{ font-size:8.5pt; font-style:italic;' +
@@ -1137,7 +1172,8 @@
 
     const body = list.map(function (g) {
       const isIn = g.type === 'Import';
-      const doc = isIn ? TICKET_TXT.docIn : TICKET_TXT.docOut;
+      const doc = isDel ? TICKET_TXT.docDel : (isIn ? TICKET_TXT.docIn : TICKET_TXT.docOut);
+      const docNo = isDel ? deliveryNoteId(g) : g.ticketId;
 
       let rows = g.items.map(function (it, k) {
         // Event trùng tên hàng thì bỏ, tránh in lặp 2 dòng giống nhau
@@ -1153,7 +1189,7 @@
           '<td class="r">' + num(it.qty) + '</td>' +
           '<td class="c">' + escapeHtml(it.unit) + '</td>' +
           '<td class="c">' + (it.boxCount || '—') + '</td>' +
-          '<td class="bn">' + escapeHtml(it.bin || '—') + '</td>' +
+          (isDel ? '' : '<td class="bn">' + escapeHtml(it.bin || '—') + '</td>') +
           '<td class="note"></td>' +      // để trống — người nhận viết tay
         '</tr>';
       }).join('');
@@ -1161,7 +1197,7 @@
       for (let f = g.items.length; f < MIN_ROWS; f++) {
         rows += '<tr class="fill">' +
           '<td class="c">' + (f + 1) + '</td>' +
-          '<td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+          '<td></td><td></td><td></td><td></td><td></td><td></td>' + (isDel ? '' : '<td></td>') + '</tr>';
       }
 
       return '' +
@@ -1178,7 +1214,7 @@
             '</td>' +
             '<td class="nc"><div class="no">' +
               TICKET_TXT.no[0] + ' <i>(' + TICKET_TXT.no[1] + ')</i>: ' +
-                '<b>' + escapeHtml(g.ticketId) + '</b><br>' +
+                '<b>' + escapeHtml(docNo) + '</b><br>' +
               TICKET_TXT.date[0] + ' <i>(' + TICKET_TXT.date[1] + ')</i>: ' +
                 '<b>' + escapeHtml(g.dateVn) + '</b>' +
             '</div></td>' +
@@ -1198,23 +1234,29 @@
             lbBi(TICKET_TXT.reqBy) + '<td class="vl">' + escapeHtml(g.pic) + '</td>' +
             lbBi(TICKET_TXT.team)  + '<td class="vl">' + escapeHtml(g.cc) + '</td>' +
           '</tr>' +
-          '<tr>' +
-            lbBi(TICKET_TXT.dept) + '<td class="vl">' + escapeHtml(g.dept) + '</td>' +
-            lbBi(TICKET_TXT.loc)  + '<td class="vl">' + escapeHtml(g.locList) + '</td>' +
-          '</tr>' +
+          (isDel
+            /* Giao đến: một hàng riêng, liệt kê mọi địa điểm (locList); không có Khối.
+               Không dòng nào có Location -> để trống cho người ký ghi tay. */
+            ? '<tr class="to">' + lbBi(TICKET_TXT.deliverTo) +
+                '<td class="vl" colspan="3">' + escapeHtml(g.locList) + '</td></tr>'
+            : '<tr>' +
+                lbBi(TICKET_TXT.dept) + '<td class="vl">' + escapeHtml(g.dept) + '</td>' +
+                lbBi(TICKET_TXT.loc)  + '<td class="vl">' + escapeHtml(g.locList) + '</td>' +
+              '</tr>') +
         '</tbody></table>' +
 
         '<table class="it">' +
-          /* 8 cột: 12 + 40 + auto(80) + 17 + 17 + 17 + 26 + 60 = 269mm */
+          /* 8 cột: 12 + 40 + auto(80) + 17 + 17 + 17 + 26 + 60 = 269mm
+             Giao hàng, 7 cột: 12 + 42 + auto(105) + 18 + 18 + 18 + 56 = 269mm */
           '<colgroup>' +
-            '<col style="width:12mm">' +   // STT
-            '<col style="width:40mm">' +   // Mã tài sản
-            '<col>' +                      // Tên hàng — nhận phần còn lại
-            '<col style="width:17mm">' +   // Số lượng
-            '<col style="width:17mm">' +   // Đơn vị
-            '<col style="width:17mm">' +   // Số thùng
-            '<col style="width:26mm">' +   // Vị trí
-            '<col style="width:60mm">' +   // Ghi chú
+            '<col style="width:12mm">' +                         // STT
+            '<col style="width:' + (isDel ? 42 : 40) + 'mm">' +  // Mã tài sản
+            '<col>' +                                            // Tên hàng — nhận phần còn lại
+            '<col style="width:' + (isDel ? 18 : 17) + 'mm">' +  // Số lượng
+            '<col style="width:' + (isDel ? 18 : 17) + 'mm">' +  // Đơn vị
+            '<col style="width:' + (isDel ? 18 : 17) + 'mm">' +  // Số thùng
+            (isDel ? '' : '<col style="width:26mm">') +          // Vị trí (phiếu giao hàng không có)
+            '<col style="width:' + (isDel ? 56 : 60) + 'mm">' +  // Ghi chú
           '</colgroup>' +
 
           '<thead><tr>' +
@@ -1224,7 +1266,7 @@
             '<th>' + thBi(TICKET_TXT.colQty)  + '</th>' +
             '<th>' + thBi(TICKET_TXT.colUnit) + '</th>' +
             '<th>' + thBi(TICKET_TXT.colBox)  + '</th>' +
-            '<th>' + thBi(TICKET_TXT.colBin)  + '</th>' +
+            (isDel ? '' : '<th>' + thBi(TICKET_TXT.colBin) + '</th>') +
             '<th>' + thBi(TICKET_TXT.colNote) + '</th>' +
           '</tr></thead>' +
 
@@ -1236,18 +1278,16 @@
             '<td class="r">' + num(g.totalQty) + '</td>' +
             '<td></td>' +
             '<td class="c">' + (g.totalBox || '—') + '</td>' +
-            '<td></td><td></td>' +
+            (isDel ? '<td></td>' : '<td></td><td></td>') +
           '</tr></tfoot>' +
         '</table>' +
 
-        /* Một ô ký bên trái (Người lập phiếu); ô còn lại để trống */
+        /* Nhập/xuất: một ô ký bên trái (Người lập phiếu), ô còn lại để trống.
+           Giao hàng: ba ô đều nhau, không ô giờ. */
         '<table class="sg"><tbody><tr>' +
-          '<td class="sgc">' +
-            '<div class="rl">' + TICKET_TXT.sgMake[0] + '</div>' +
-            '<div class="nt">(' + TICKET_TXT.sgMake[1] + ')<br>' + TICKET_TXT.sgNote[0] + '</div>' +
-            '<div class="gap"></div>' +
-          '</td>' +
-          '<td></td>' +
+          (isDel
+            ? sgBox(TICKET_TXT.sgMake) + sgBox(TICKET_TXT.sgShip) + sgBox(TICKET_TXT.sgRecv)
+            : sgBox(TICKET_TXT.sgMake) + '<td></td>') +
         '</tr></tbody></table>' +
       '</div>';
     }).join('');
@@ -1273,7 +1313,7 @@
       '})();';
 
     return '<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8">' +
-      '<title>' + TICKET_TXT.docIn[0] + ' / ' + TICKET_TXT.docOut[0] + '</title>' +
+      '<title>' + (isDel ? TICKET_TXT.docDel[0] : TICKET_TXT.docIn[0] + ' / ' + TICKET_TXT.docOut[0]) + '</title>' +
       '<style>' + css + '</style></head><body>' +
       '<div class="bar">' +
         '<button onclick="window.print()">' + t('ticket.print') + '</button>' +
