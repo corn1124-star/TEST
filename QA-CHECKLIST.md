@@ -100,7 +100,7 @@ Làm sau mỗi lần deploy. Hard-reload (Ctrl+F5), mở menu tài khoản: dòn
 7. **Bàn phím:** mỗi cột sắp xếp được là một điểm dừng Tab trước dòng đầu của bảng (hành vi chuẩn, chưa có "bỏ qua tiêu đề").
 8. **SIM:** mở một file XLSX xuất ra bằng Excel thật (và LibreOffice nếu có); CSV mở bằng Excel en-US có thể đảo ngày/tháng nên XLSX an toàn hơn; trước khi deploy kiểm cột Q:R của sheet `Sim` đang trống.
 
-9. **In phiếu (v4.4.0):** in một Phiếu nhập, một Phiếu xuất và một Phiếu giao hàng ra PDF hoặc máy in thật, chế độ đen trắng: chữ rõ, viền liền, khung ký đủ chỗ; kiểm một phiếu khoảng 40 dòng: hàng tiêu đề lặp ở trang 2, hàng tổng và khối ký chỉ ở trang cuối và không nằm trơ trọi một mình trên một trang (nếu nằm một mình thì ghi lại để báo cho người dùng); kiểm một phiếu xuất cũ mà Location là nơi lấy hàng chứ không phải nơi nhận: admin phải xem lại ô "Giao đến" trước khi in.
+9. **In phiếu (v4.4.0):** in một Phiếu nhập, một Phiếu xuất và một Phiếu giao hàng ra PDF hoặc máy in thật, chế độ đen trắng: chữ rõ, viền liền, khung ký đủ chỗ; kiểm một phiếu khoảng 40 dòng: hàng tiêu đề lặp ở trang 2, hàng tổng và khối ký chỉ ở trang cuối, luôn đi cùng ít nhất một dòng hàng (không bao giờ nằm trơ trọi; trang cuối đó có thể không có hàng tiêu đề); kiểm một phiếu xuất cũ mà Location là nơi lấy hàng chứ không phải nơi nhận: admin phải xem lại ô "Giao đến" trước khi in.
 
 ## Chưa kiểm chứng được bằng harness
 `google.script.history` trên deployment thật, Google Sites embed, hộp thoại in của trình duyệt, ảnh Drive, độ tương phản nút xanh `#00873b` (4,58:1, sát ngưỡng 4,5).

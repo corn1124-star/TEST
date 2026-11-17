@@ -49,6 +49,28 @@ async function openTickets(page, init) {
 const count = (s, re) => (s.match(re) || []).length;
 const cssOf = (html) => html.slice(html.indexOf('<style>'), html.indexOf('.bar{'));
 
+/* Bảng mặt hàng gồm HAI bảng .it: bảng chính (colgroup + thead + n-1 dòng) và, trong khối .keep,
+   bảng "lst" (dòng hàng cuối + tfoot). Khối .keep còn chứa table.sg. */
+const KEEP_RE = /<div class="keep">(<table class="it lst">[\s\S]*?<\/table>)(<table class="sg">[\s\S]*?<\/table>)<\/div>/;
+const itTables = (html) => html.match(/<table class="it(?: lst)?">[\s\S]*?<\/table>/g) || [];
+/* kiểm cấu trúc giữ liền cho MỘT phiếu: nItems = số mặt hàng, cols = số cột */
+function keepTogether(label, html, css, nItems, cols) {
+  const t = itTables(html), keep = html.match(KEEP_RE);
+  const main = t[0] || '', lst = keep ? keep[1] : '', sg = keep ? keep[2] : '';
+  const colgroup = (x) => (x.match(/<colgroup>[\s\S]*?<\/colgroup>/) || [''])[0];
+  const rowsOf = (x) => count((x.match(/<tbody>[\s\S]*?<\/tbody>/) || [''])[0], /<tr\b/g);
+  check(`${label}: .keep wraps the LAST item row + tfoot total + signature box (one .keep, two table.it, one table.sg)`,
+    !!keep && count(html, /<div class="keep">/g) === 1 && t.length === 2 && count(html, /<table class="sg">/g) === 1
+    && rowsOf(lst) === 1 && count(lst, /<tfoot>/g) === 1 && !lst.includes('<thead>') && /colspan="3"/.test(lst)
+    && count(sg, /<td class="sgc">/g) === (cols === 7 ? 3 : 1), `tables=${t.length} lstRows=${rowsOf(lst)}`);
+  check(`${label}: main table has thead + n-1 item rows and no tfoot; both tables share one colgroup (${cols} cols)`,
+    main.includes('<thead>') && !main.includes('<tfoot>') && rowsOf(main) === nItems - 1
+    && colgroup(main) === colgroup(lst) && count(colgroup(main), /<col\b/g) === cols, `mainRows=${rowsOf(main)} n=${nItems}`);
+  check(`${label}: keep css (break-inside:avoid on .keep, seam overlap -1pt, margin-bottom only on the second table)`,
+    /\.keep\{[^}]*break-inside:avoid/.test(css) && /table\.it\.lst\{[^}]*margin-top:-1pt[^}]*margin-bottom:11pt/.test(css)
+    && !/table\.it\{[^}]*margin-bottom/.test(css));
+}
+
 build({ quiet: true });
 
 {
@@ -91,7 +113,9 @@ build({ quiet: true });
       check(`${P}: no decorative rule (.ln, hdBox/hd border-bottom, class="ln")`,
         !/\.ln\b/.test(css) && !/\.(hdBox|hd)\{[^}]*border-bottom/.test(css) && !html.includes('class="ln"'));
 
-      const it = (html.match(/<table class="it">[\s\S]*?<\/table>/) || [''])[0];
+      const n0 = await page.eval((k) => TICKETS.rows[k - 1].items.length, k);
+      keepTogether(P, html, css, n0, 8);
+      const it = itTables(html)[0] || '';
       check(`${P}: 8 columns incl. "Vị trí" / Bin`, count(it, /<col\b/g) === 8 && count(it, /<th>/g) === 8 && /Vị trí<span class="en">Bin<\/span>/.test(it), `cols=${count(it, /<col\b/g)} th=${count(it, /<th>/g)}`);
     }
   } finally { await page.close(); }
@@ -108,6 +132,10 @@ build({ quiet: true });
     check('long ticket: thead repeats, tfoot does not',
       css.includes('thead{display:table-header-group}') && css.includes('tfoot{display:table-row-group}') && css.includes('table.it tr{page-break-inside:avoid}'));
     check('long ticket: one signature table', count(html, /<table class="sg">/g) === 1);
+    keepTogether('long ticket', html, css, 40, 8);
+    const keptRow = (html.match(KEEP_RE) || [])[1] || '';
+    check('long ticket: the row inside .keep is the 40th item; all 40 item rows exist across both tables',
+      keptRow.includes('-<wbr>39') && count(itTables(html).join(''), /<td class="cd">/g) === 40);
   } finally { await page.close(); }
 }
 
@@ -184,14 +212,17 @@ const idxOf = (page) => page.eval(() => ({
     check('delivery note: signature boxes have equal widths (33.33%)',
       count(html, /<td class="sgc">/g) === 3 && /table\.sg td\.sgc\{[^}]*width:33\.33%/.test(css), (css.match(/table\.sg td\.sgc\{[^}]*\}/g) || []).join(' '));
 
-    const it = (html.match(/<table class="it">[\s\S]*?<\/table>/) || [''])[0];
-    const body = (it.match(/<tbody>[\s\S]*<\/tbody>/) || [''])[0];
+    keepTogether('delivery note', html, css, g.codes.length, 7);
+    const it = itTables(html)[0] || '';
+    const body = itTables(html).map((t) => (t.match(/<tbody>[\s\S]*?<\/tbody>/) || [''])[0]).join('');   // cả hai bảng: toàn bộ dòng hàng
     const sumQty = (body.match(/<tr>[\s\S]*?<\/tr>/g) || []).reduce((s, r) => s + Number(stripTags((r.match(/<td class="r">([\s\S]*?)<\/td>/) || [])[1] || '0').replace(/[^\d]/g, '')), 0);
     check('delivery note: 7 columns, no "Bin"/"Vị trí" header; every item code present; total quantity equals ticket totalQty',
       count(it, /<col\b/g) === 7 && count(it, /<th>/g) === 7 && !it.includes('Bin') && !it.includes('Vị trí')
       && g.codes.every((c) => html.includes(c.split('-').join('-<wbr>'))) && count(body, /<tr>/g) === g.codes.length && sumQty === g.qty,
       `cols=${count(it, /<col\b/g)} th=${count(it, /<th>/g)} sum=${sumQty} qty=${g.qty}`);
-    const foot = (it.match(/<tfoot>[\s\S]*<\/tfoot>/) || [''])[0];
+    const foots = itTables(html).join('').match(/<tfoot>[\s\S]*?<\/tfoot>/g) || [];
+    const foot = foots[0] || '';
+    check('delivery note: exactly one tfoot in the whole document', foots.length === 1, String(foots.length));
     check('delivery note: tfoot spans exactly 7 columns (3 + 1 + 1 + 1 + 1)',
       /<td class="r" colspan="3">/.test(foot) && count(foot, /<td/g) === 5, foot);
 
@@ -238,11 +269,14 @@ const idxOf = (page) => page.eval(() => ({
 {   // escape
   const page = await createDriver();
   try {
-    await openTickets(page, INIT_EXPORT({ pic: '<b>&Co', name: 'Áo "Grab" <i>x</i>' }));
+    await openTickets(page, INIT_EXPORT({ pic: '<b>&Co', name: 'Áo "Grab" <i>x</i>', locs: ['Kho <&"Q7">'] }));
     const idx = await idxOf(page);
     const html = (await delivered(page, idx.exp))[0] || '';
     check('delivery note: requester "<b>&Co" and item name with quotes are escaped',
       html.includes('&lt;b&gt;&amp;Co') && !html.includes('<b>&Co') && html.includes('&quot;Grab&quot;') && html.includes('&lt;i&gt;x&lt;/i&gt;') && !html.includes('<i>x</i>'));
+    const to = (html.match(/<tr class="to">([\s\S]*?)<\/tr>/) || [])[1] || '';
+    check('delivery note: Location with <&" is escaped in "Giao đến" (locList)',
+      to.includes('Kho &lt;&amp;&quot;Q7&quot;&gt;') && !html.includes('Kho <&"Q7">'), to);
   } finally { await page.close(); }
 }
 

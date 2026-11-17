@@ -1117,8 +1117,7 @@
       'table.info tr.to td.vl{ font-size:12.5pt; font-weight:bold; }' +
 
       /* ═══ BẢNG MẶT HÀNG — nền TRẮNG hoàn toàn ═══ */
-      'table.it{ width:100%; table-layout:fixed; font-size:9.5pt;' +
-        ' margin-bottom:11pt; }' +
+      'table.it{ width:100%; table-layout:fixed; font-size:9.5pt; }' +
       'table.it th, table.it td{ border:1pt solid #000; padding:4pt;' +
         ' vertical-align:top; background:#fff;' +
         ' word-wrap:break-word; overflow-wrap:break-word; }' +
@@ -1148,6 +1147,11 @@
       'tfoot{display:table-row-group}' +
       'table.it tr{page-break-inside:avoid}' +
 
+      /* Bảng .it thứ hai (dòng hàng cuối + tổng) nối liền bảng thứ nhất: lấn lên
+         1pt để hai đường viền trùng nhau; chỉ bảng này có lề dưới. */
+      '.keep{ break-inside:avoid; page-break-inside:avoid; }' +
+      'table.it.lst{ margin-top:-1pt; margin-bottom:11pt; }' +
+
       /* ═══ CHỮ KÝ — nhập/xuất: một ô bên trái 34% · giao hàng: ba ô đều nhau; không đường kẻ ═══ */
       'table.sg{ width:100%; table-layout:fixed; margin-top:12pt;' +
         ' page-break-inside:avoid; }' +
@@ -1175,7 +1179,7 @@
       const doc = isDel ? TICKET_TXT.docDel : (isIn ? TICKET_TXT.docIn : TICKET_TXT.docOut);
       const docNo = isDel ? deliveryNoteId(g) : g.ticketId;
 
-      let rows = g.items.map(function (it, k) {
+      const rowList = g.items.map(function (it, k) {
         // Event trùng tên hàng thì bỏ, tránh in lặp 2 dòng giống nhau
         const showEvent = it.event &&
           it.event.trim().toLowerCase() !== it.name.trim().toLowerCase();
@@ -1192,13 +1196,34 @@
           (isDel ? '' : '<td class="bn">' + escapeHtml(it.bin || '—') + '</td>') +
           '<td class="note"></td>' +      // để trống — người nhận viết tay
         '</tr>';
-      }).join('');
+      });
 
       for (let f = g.items.length; f < MIN_ROWS; f++) {
-        rows += '<tr class="fill">' +
+        rowList.push('<tr class="fill">' +
           '<td class="c">' + (f + 1) + '</td>' +
-          '<td></td><td></td><td></td><td></td><td></td><td></td>' + (isDel ? '' : '<td></td>') + '</tr>';
+          '<td></td><td></td><td></td><td></td><td></td><td></td>' + (isDel ? '' : '<td></td>') + '</tr>');
       }
+
+      /* Dòng hàng CUỐI + hàng tổng + khối ký đi cùng nhau trong một khối không bị cắt
+         (.keep): khối ký không bao giờ đứng một mình ở trang cuối, hàng tổng không
+         bao giờ đứng trơ trọi; thiếu chỗ thì khối nhảy sang trang mới KÈM dòng hàng cuối. */
+      const lastRow = rowList.length ? rowList[rowList.length - 1] : '';
+      const rows = rowList.slice(0, -1).join('');
+
+      /* Hai bảng .it dùng chung một colgroup để lưới kẻ nối liền như một bảng */
+      const colgroup =
+        /* 8 cột: 12 + 40 + auto(80) + 17 + 17 + 17 + 26 + 60 = 269mm
+           Giao hàng, 7 cột: 12 + 42 + auto(105) + 18 + 18 + 18 + 56 = 269mm */
+        '<colgroup>' +
+          '<col style="width:12mm">' +                         // STT
+          '<col style="width:' + (isDel ? 42 : 40) + 'mm">' +  // Mã tài sản
+          '<col>' +                                            // Tên hàng — nhận phần còn lại
+          '<col style="width:' + (isDel ? 18 : 17) + 'mm">' +  // Số lượng
+          '<col style="width:' + (isDel ? 18 : 17) + 'mm">' +  // Đơn vị
+          '<col style="width:' + (isDel ? 18 : 17) + 'mm">' +  // Số thùng
+          (isDel ? '' : '<col style="width:26mm">') +          // Vị trí (phiếu giao hàng không có)
+          '<col style="width:' + (isDel ? 56 : 60) + 'mm">' +  // Ghi chú
+        '</colgroup>';
 
       return '' +
       '<div class="ticket">' +
@@ -1245,19 +1270,7 @@
               '</tr>') +
         '</tbody></table>' +
 
-        '<table class="it">' +
-          /* 8 cột: 12 + 40 + auto(80) + 17 + 17 + 17 + 26 + 60 = 269mm
-             Giao hàng, 7 cột: 12 + 42 + auto(105) + 18 + 18 + 18 + 56 = 269mm */
-          '<colgroup>' +
-            '<col style="width:12mm">' +                         // STT
-            '<col style="width:' + (isDel ? 42 : 40) + 'mm">' +  // Mã tài sản
-            '<col>' +                                            // Tên hàng — nhận phần còn lại
-            '<col style="width:' + (isDel ? 18 : 17) + 'mm">' +  // Số lượng
-            '<col style="width:' + (isDel ? 18 : 17) + 'mm">' +  // Đơn vị
-            '<col style="width:' + (isDel ? 18 : 17) + 'mm">' +  // Số thùng
-            (isDel ? '' : '<col style="width:26mm">') +          // Vị trí (phiếu giao hàng không có)
-            '<col style="width:' + (isDel ? 56 : 60) + 'mm">' +  // Ghi chú
-          '</colgroup>' +
+        '<table class="it">' + colgroup +
 
           '<thead><tr>' +
             '<th>' + thBi(TICKET_TXT.colIdx)  + '</th>' +
@@ -1271,6 +1284,12 @@
           '</tr></thead>' +
 
           '<tbody>' + rows + '</tbody>' +
+        '</table>' +
+
+        /* Khối giữ liền: dòng hàng cuối + hàng tổng + khối ký */
+        '<div class="keep">' +
+        '<table class="it lst">' + colgroup +
+          '<tbody>' + lastRow + '</tbody>' +
 
           '<tfoot><tr>' +
             '<td class="r" colspan="3">' + TICKET_TXT.total[0] +
@@ -1289,6 +1308,7 @@
             ? sgBox(TICKET_TXT.sgMake) + sgBox(TICKET_TXT.sgShip) + sgBox(TICKET_TXT.sgRecv)
             : sgBox(TICKET_TXT.sgMake) + '<td></td>') +
         '</tr></tbody></table>' +
+        '</div>' +
       '</div>';
     }).join('');
 
